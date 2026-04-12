@@ -238,9 +238,18 @@ export async function exportClientPdf({ clientName, items, toPay }) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12.5)
   doc.setTextColor(...INK)
-  doc.text(`Totale da pagare (Venduto) · EUR ${Number(toPay).toFixed(2)}`, m + 8, y + 11.5)
+  doc.text(`Da versare al cliente (Venduto, quota Vinted) · EUR ${Number(toPay).toFixed(2)}`, m + 8, y + 11.5)
 
-  y += payCardH + 8
+  y += payCardH + 6
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
+  doc.setTextColor(...INK_MUTED)
+  const commLines = doc.splitTextToSize(
+    "Regola Telovendo sul prezzo di vendita: fino a 20 EUR 50% cliente / 50% Telovendo; oltre 20 EUR fino a 50 EUR 60% / 40%; oltre 50 EUR 70% / 30%. Somma delle quote spettanti al cliente.",
+    contentW - 10,
+  )
+  doc.text(commLines, m + 8, y)
+  y += commLines.length * 3.6 + 8
 
   const statCardExtra = nOther > 0 ? 10 : 0
   const statCardH = 50 + statCardExtra

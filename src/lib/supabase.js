@@ -57,6 +57,13 @@ export async function fetchClientProfiles() {
   return data || []
 }
 
+/** Profilo anagrafico considerato completo (allineato alla pagina Clienti). */
+export function isClientProfileComplete(row) {
+  if (!row || !String(row.client_name ?? '').trim()) return false
+  const t = (v) => String(v ?? '').trim().length > 0
+  return t(row.first_name) && t(row.last_name) && t(row.phone) && t(row.email) && t(row.iban)
+}
+
 export async function upsertClientProfile(row) {
   const { error } = await supabase.from('client_profiles').upsert(row, { onConflict: 'client_name' })
   if (error) throw error

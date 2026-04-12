@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { exportClientPdf } from '../lib/exportClientPdf'
+import { clientShareFromSalePrice } from '../lib/vintedCommission'
 import { displayOptionalColumn, displaySku, fetchClientProfiles, supabase, upsertClientProfile } from '../lib/supabase'
 import { daysToExpiry, formatDate } from '../utils/date'
 
@@ -81,7 +82,9 @@ export default function ClientsPage() {
     }
 
     return [...map.entries()].map(([clientName, items]) => {
-      const toPay = items.filter((i) => i.status === 'Venduto').reduce((sum, i) => sum + Number(i.price || 0), 0)
+      const toPay = items
+        .filter((i) => i.status === 'Venduto')
+        .reduce((sum, i) => sum + clientShareFromSalePrice(i.price), 0)
 
       const expiringItems = items.filter((i) => i.status === 'Caricato' && i.loaded_at)
       const minDays =
@@ -145,7 +148,7 @@ export default function ClientsPage() {
               <div>
                 <h3 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">{client.clientName}</h3>
                 <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                  Totale da pagare (solo Venduto):{' '}
+                  Da versare al cliente (solo Venduto, quota su prezzo Vinted):{' '}
                   <span className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
                     EUR {client.toPay.toFixed(2)}
                   </span>

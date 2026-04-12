@@ -10,7 +10,7 @@ const navItems = [
 
 const routeIntro = {
   '/': { title: 'Nuovo articolo', subtitle: 'Foto, estrazione AI e salvataggio in magazzino' },
-  '/inventario': { title: 'Inventario', subtitle: 'Filtra, modifica stati e prezzi in tempo reale' },
+  '/inventario': { title: 'Inventario', subtitle: '' },
   '/clienti': { title: 'Clienti', subtitle: 'Riepilogo per venditore e export PDF' },
   '/statistiche': { title: 'Statistiche', subtitle: 'KPI, distribuzione stati e totali da pagare' },
 }
@@ -89,7 +89,7 @@ export default function Layout({ children }) {
       <div className="mx-auto max-w-[min(96rem,calc(100vw-2rem))] px-4 pb-12 pt-8 sm:px-6">
         <header className="mb-8 max-w-none">
           <h2 className="app-page-title text-2xl sm:text-3xl">{intro.title}</h2>
-          <p className="app-page-lead mt-2 text-base sm:text-lg">{intro.subtitle}</p>
+          {intro.subtitle ? <p className="app-page-lead mt-2 text-base sm:text-lg">{intro.subtitle}</p> : null}
         </header>
         <main>{children}</main>
       </div>

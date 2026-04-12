@@ -96,6 +96,24 @@ export function mergeUserNotesEdit(previousFull, newVisible) {
   return newVisible
 }
 
+/**
+ * URL miniatura per la tabella inventario: su Supabase Storage usa il rendering
+ * (immagine più leggera). Se non è un URL Storage o il render fallisce, usa l’originale
+ * (`onError` sull’`<img>`).
+ */
+export function getProductPhotoThumbnailSrc(url) {
+  const u = String(url || '').trim()
+  if (!u) return u
+  const marker = '/storage/v1/object/public/'
+  const i = u.indexOf(marker)
+  if (i === -1) return u
+  const pathFromBucket = u.slice(i + marker.length)
+  const origin = u.slice(0, i)
+  const renderBase = `${origin}/storage/v1/render/image/public/${pathFromBucket}`
+  const join = renderBase.includes('?') ? '&' : '?'
+  return `${renderBase}${join}width=360&height=360&resize=cover&quality=82`
+}
+
 /** Tutte le URL pubbliche dell'articolo (ordine galleria, senza duplicati). */
 export function getAllProductPhotoUrls(product) {
   if (!product) return []
