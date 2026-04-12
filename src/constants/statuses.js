@@ -32,7 +32,7 @@ export function normalizeStatus(status) {
 
 export const STATUS_SELECT_CLASSES = {
   Magazzino:
-    'bg-stone-200 text-stone-900 dark:bg-stone-600/90 dark:text-stone-100 border-stone-300/80 dark:border-stone-500/50',
+    'bg-zinc-200 text-zinc-900 dark:bg-zinc-600/90 dark:text-zinc-100 border-zinc-300/80 dark:border-zinc-500/50',
   Caricato:
     'bg-sky-200 text-sky-950 dark:bg-sky-700/90 dark:text-sky-50 border-sky-300/80 dark:border-sky-500/50',
   Venduto:

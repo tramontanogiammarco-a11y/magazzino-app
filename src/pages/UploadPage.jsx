@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { extractProductDataFromPhoto } from '../lib/gemini'
+import { extractProductDataFromPhotos } from '../lib/gemini'
 import { notifyGoogleSheetsNewProduct } from '../lib/googleSheets'
-import { getDistinctProductFields, supabase, uploadProductPhoto, uploadProductPhotos } from '../lib/supabase'
+import { encodeNotesWithGallery, getAllProductPhotoUrls, stripGalleryFromNotes } from '../lib/productPhotos'
+import { formatProductsInsertError, isPhotoUrlsSchemaError } from '../lib/supabaseErrors'
+import {
+  getDistinctProductFields,
+  PLACEHOLDER_CLIENT_NAME,
+  PLACEHOLDER_SKU,
+  PLACEHOLDER_SLOT,
+  supabase,
+  uploadProductPhoto,
+  uploadProductPhotos,
+} from '../lib/supabase'
 import { STATUSES } from '../constants/statuses'
 
 const initialForm = {
@@ -15,6 +25,22 @@ const initialForm = {
 }
 
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?)$/i
+
+/**
+ * Insert: sku / cliente / slot sempre valorizzati (SKU `9999` se vuoto, come da convenzione app).
+ */
+function prepareProductInsertPayload(payload) {
+  const p = { ...payload }
+  const skuDigits = p.sku != null ? String(p.sku).replace(/\D/g, '').slice(0, 4) : ''
+  p.sku = skuDigits || PLACEHOLDER_SKU
+  p.client_name =
+    p.client_name != null && String(p.client_name).trim() !== ''
+      ? String(p.client_name).trim()
+      : PLACEHOLDER_CLIENT_NAME
+  p.slot =
+    p.slot != null && String(p.slot).trim() !== '' ? String(p.slot).trim() : PLACEHOLDER_SLOT
+  return p
+}
 
 /** Escludi solo tipi chiaramente non immagine; il resto passa (MIME spesso vuoto su iPhone). */
 function acceptPickerFile(file) {
@@ -112,13 +138,6 @@ export default function UploadPage() {
     input.value = ''
   }
 
-  /** iOS: a volte `multiple` non restituisce più file; senza multiple ogni scelta aggiunge 1+ file alla coda. */
-  const onFileInputAppendChange = (e) => {
-    const input = e.target
-    appendFilesFromList(input.files, true)
-    input.value = ''
-  }
-
   const removeFromQueue = (index) => {
     setFileQueue((q) => q.filter((_, j) => j !== index))
   }
@@ -128,7 +147,8 @@ export default function UploadPage() {
     setLoadingVision(true)
     setMessage('')
     try {
-      const data = await extractProductDataFromPhoto(activeFile)
+      const filesToAnalyze = fileQueue.map((item) => item.file)
+      const data = await extractProductDataFromPhotos(filesToAnalyze)
       setForm((old) => ({
         ...old,
         ...data,
@@ -137,7 +157,11 @@ export default function UploadPage() {
         description: (data.description ?? old.description ?? '').toString(),
         sku: (data.sku ?? old.sku ?? '').toString(),
       }))
-      setMessage('Dati estratti da Telovendo AI. Verifica e salva.')
+      setMessage(
+        filesToAnalyze.length > 1
+          ? `Dati estratti da Telovendo AI usando ${filesToAnalyze.length} foto in coda. Verifica e salva.`
+          : 'Dati estratti da Telovendo AI. Verifica e salva.',
+      )
     } catch (error) {
       setMessage(`Errore Telovendo AI: ${error.message}`)
     } finally {
@@ -152,45 +176,39 @@ export default function UploadPage() {
     setMessage('')
 
     try {
-      const clientName = form.client_name?.trim() ?? ''
-      const slotValue = form.slot?.trim() ?? ''
-      if (!clientName) {
-        setMessage('Indica un cliente dal menu oppure scrivi il nome nel campo sotto.')
-        return
-      }
-      if (!slotValue) {
-        setMessage('Indica uno slot dal menu oppure scrivilo nel campo sotto.')
-        return
-      }
+      const clientName = form.client_name?.trim() || null
+      const slotValue = form.slot?.trim() || null
+      const skuVal = form.sku?.replace(/\D/g, '').slice(0, 4) || null
+      const desc = form.description?.trim() || 'Articolo'
 
       const photoUrl = await uploadProductPhoto(activeFile)
-      const payload = {
+      /** Non inviare `photo_urls` nell’insert: se la colonna non c’è, PostgREST fallisce anche con 1 foto. */
+      const payload = prepareProductInsertPayload({
         photo_url: photoUrl,
-        photo_urls: [photoUrl],
-        description: form.description,
-        sku: form.sku,
+        description: desc,
+        sku: skuVal,
         client_name: clientName,
         slot: slotValue,
         status: form.status,
         price: form.price ? Number(form.price) : null,
         notes: form.notes || null,
-      }
+      })
 
       if (form.status === 'Caricato') payload.loaded_at = new Date().toISOString()
       if (form.status === 'Venduto') payload.sold_at = new Date().toISOString()
       if (form.status === 'Pagato') payload.paid_at = new Date().toISOString()
 
-      const { error } = await supabase.from('products').insert(payload)
+      const { error } = await supabase.from('products').insert(payload).select('id, photo_url').single()
       if (error) throw error
 
       try {
         await notifyGoogleSheetsNewProduct({
-          description: form.description,
+          description: desc,
           status: form.status,
           price: form.price ? Number(form.price) : null,
-          client_name: clientName,
-          sku: form.sku,
-          slot: slotValue,
+          client_name: clientName ?? '',
+          sku: skuVal ?? '',
+          slot: slotValue ?? '',
         })
       } catch {
         // Webhook best-effort; salvataggio già riuscito
@@ -206,7 +224,7 @@ export default function UploadPage() {
       )
       loadDistinctValues()
     } catch (error) {
-      setMessage(`Errore salvataggio: ${error.message}`)
+      setMessage(`Errore salvataggio: ${formatProductsInsertError(error)}`)
     } finally {
       setSaving(false)
     }
@@ -219,46 +237,80 @@ export default function UploadPage() {
     setMessage('')
 
     try {
-      const clientName = form.client_name?.trim() ?? ''
-      const slotValue = form.slot?.trim() ?? ''
-      if (!clientName) {
-        setMessage('Indica un cliente dal menu oppure scrivi il nome nel campo sotto.')
-        return
-      }
-      if (!slotValue) {
-        setMessage('Indica uno slot dal menu oppure scrivilo nel campo sotto.')
-        return
-      }
+      const clientName = form.client_name?.trim() || null
+      const slotValue = form.slot?.trim() || null
+      const skuVal = form.sku?.replace(/\D/g, '').slice(0, 4) || null
+      const desc = form.description?.trim() || 'Articolo'
 
       const files = fileQueue.map((item) => item.file)
       const urls = await uploadProductPhotos(files)
-      const payload = {
+      const payload = prepareProductInsertPayload({
         photo_url: urls[0],
-        photo_urls: urls,
-        description: form.description,
-        sku: form.sku,
+        description: desc,
+        sku: skuVal,
         client_name: clientName,
         slot: slotValue,
         status: form.status,
         price: form.price ? Number(form.price) : null,
         notes: form.notes || null,
-      }
+      })
 
       if (form.status === 'Caricato') payload.loaded_at = new Date().toISOString()
       if (form.status === 'Venduto') payload.sold_at = new Date().toISOString()
       if (form.status === 'Pagato') payload.paid_at = new Date().toISOString()
 
-      const { error } = await supabase.from('products').insert(payload)
-      if (error) throw error
+      const { data: row, error: insertErr } = await supabase.from('products').insert(payload).select('id, photo_url').single()
+      if (insertErr) throw insertErr
+
+      const { error: galleryErr } = await supabase
+        .from('products')
+        .update({
+          photo_urls: urls,
+          notes: stripGalleryFromNotes(form.notes || '') || null,
+        })
+        .eq('id', row.id)
+      if (galleryErr && isPhotoUrlsSchemaError(galleryErr)) {
+        const notesPayload = encodeNotesWithGallery(form.notes || '', urls)
+        const { error: notesErr } = await supabase
+          .from('products')
+          .update({ notes: notesPayload })
+          .eq('id', row.id)
+        if (notesErr) throw notesErr
+
+        try {
+          await notifyGoogleSheetsNewProduct({
+            description: desc,
+            status: form.status,
+            price: form.price ? Number(form.price) : null,
+            client_name: clientName ?? '',
+            sku: skuVal ?? '',
+            slot: slotValue ?? '',
+          })
+        } catch {
+          // Webhook best-effort
+        }
+
+        setFileQueue([])
+        setForm(initialForm)
+        setActiveIndex(0)
+        setMessage(
+          `Articolo salvato con tutte le ${urls.length} foto (galleria e ZIP: anche senza colonna photo_urls su Supabase). Quando potrai, esegui comunque sql/product_photo_urls.sql per usare solo il database.`,
+        )
+        loadDistinctValues()
+        return
+      }
+      if (galleryErr) throw galleryErr
+
+      const inserted = { ...row, photo_urls: urls }
 
       try {
         await notifyGoogleSheetsNewProduct({
-          description: form.description,
+          description: desc,
           status: form.status,
           price: form.price ? Number(form.price) : null,
-          client_name: clientName,
-          sku: form.sku,
-          slot: slotValue,
+          client_name: clientName ?? '',
+          sku: skuVal ?? '',
+          slot: slotValue ?? '',
         })
       } catch {
         // Webhook best-effort
@@ -267,24 +319,27 @@ export default function UploadPage() {
       setFileQueue([])
       setForm(initialForm)
       setActiveIndex(0)
-      setMessage(`Articolo salvato con ${urls.length} foto in galleria. Apri l’inventario per vederle e scaricarle in ZIP.`)
+
+      const savedN = getAllProductPhotoUrls(inserted).length
+      const mismatch =
+        savedN !== urls.length
+          ? ` Attenzione: in database risultano ${savedN} foto su ${urls.length}. In Supabase esegui sql/product_photo_urls.sql se non l’hai già fatto.`
+          : ''
+      setMessage(
+        `Articolo salvato con ${urls.length} foto in galleria. Apri l’inventario per vederle e scaricare lo ZIP.${mismatch}`,
+      )
       loadDistinctValues()
     } catch (error) {
-      setMessage(`Errore salvataggio: ${error.message}`)
+      setMessage(`Errore salvataggio: ${formatProductsInsertError(error)}`)
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <section className="grid gap-8 lg:grid-cols-2 lg:items-start">
+    <section className="grid gap-6 lg:grid-cols-2 lg:items-start">
       <div className="app-card p-5 sm:p-6">
-        <p className="app-kicker mb-1">Passo 1</p>
-        <h2 className="app-section-title mb-5">Carica e analizza la foto</h2>
-        {/*
-          Su iOS Safari aprire il file picker con button + input.click() ignora spesso `multiple`.
-          L’input trasparente sopra l’etichetta riceve il tap direttamente (come nativo).
-        */}
+        <h2 className="app-section-title mb-5">Carica prodotto</h2>
         <label className="app-btn-secondary relative flex min-h-[3.25rem] w-full cursor-pointer items-center py-3.5 pl-4 text-left text-[15px]">
           <input
             id="magazzino-upload-photos"
@@ -293,33 +348,13 @@ export default function UploadPage() {
             multiple
             className="absolute inset-0 z-10 block h-full min-h-[3.25rem] w-full cursor-pointer opacity-0"
             onChange={onFileInputChange}
-            aria-label="Carica una o più foto prodotto"
+            aria-label="Carica foto prodotto"
           />
-          <span className="pointer-events-none relative z-0 select-none">Carica foto (anche più insieme)</span>
+          <span className="pointer-events-none relative z-0 select-none">Carica prodotto</span>
         </label>
-        <label className="app-btn-ghost relative mt-2 flex min-h-[2.75rem] w-full cursor-pointer items-center py-2.5 pl-3 text-left text-sm text-zinc-600 dark:text-zinc-400">
-          <input
-            type="file"
-            accept="image/*"
-            className="absolute inset-0 z-10 block h-full w-full cursor-pointer opacity-0"
-            onChange={onFileInputAppendChange}
-            aria-label="Aggiungi altre foto alla coda"
-          />
-          <span className="pointer-events-none relative z-0 select-none">
-            + Aggiungi altre foto alla coda (un altro caricamento — su iPhone è il metodo più sicuro)
-          </span>
-        </label>
-        <p className="mt-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
-          Su iPhone, dalla Libreria tocca <span className="font-medium text-zinc-700 dark:text-zinc-300">Seleziona foto</span> (in alto a destra) per segnarne più di una. Se ne arriva sempre una sola, usa il link sotto più volte: ogni scelta si <span className="font-medium">aggiunge</span> alla coda.
-        </p>
-        <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
-          Se usi il sito online: dopo un deploy su Vercel fai refresh forzato (tenendo premuto ricarica → «ricarica senza contenuto in cache») oppure aggiorna l’app dalla home.
-        </p>
         {fileQueue.length > 0 && (
           <div className="mt-3 space-y-2">
-            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              {fileQueue.length} {fileQueue.length === 1 ? 'foto in coda' : 'foto in coda'} — seleziona quella da lavorare
-            </p>
+            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{fileQueue.length} foto in coda</p>
             <ul className="max-h-40 space-y-1.5 overflow-y-auto rounded-xl border border-zinc-200/80 bg-zinc-500/[0.03] p-2 dark:border-zinc-600 dark:bg-zinc-950/40">
               {fileQueue.map((item, index) => (
                 <li key={item.id} className="flex items-center gap-2">
@@ -374,7 +409,7 @@ export default function UploadPage() {
         <p className="app-kicker mb-1">Passo 2</p>
         <h2 className="app-section-title mb-5">Conferma dati e salva</h2>
         <div className="grid gap-4">
-          {['description', 'sku', 'price'].map((field) => (
+          {['description', 'price'].map((field) => (
             <label key={field} className="block">
               <span className="app-label capitalize">{field.replace('_', ' ')}</span>
               <input
@@ -386,6 +421,20 @@ export default function UploadPage() {
           ))}
 
           <label className="block">
+            <span className="app-label">SKU</span>
+            <input
+              value={form.sku}
+              onChange={(e) =>
+                setForm((old) => ({ ...old, sku: e.target.value.replace(/\D/g, '').slice(0, 4) }))
+              }
+              className="app-input font-mono tabular-nums"
+              placeholder="Es. 1234"
+              maxLength={4}
+              inputMode="numeric"
+            />
+          </label>
+
+          <label className="block">
             <span className="app-label">Nome cliente</span>
             <select
               value={clientOptions.includes(selectedClientValue) ? selectedClientValue : ''}
@@ -395,7 +444,7 @@ export default function UploadPage() {
               }}
               className="app-input"
             >
-              <option value="">Seleziona cliente</option>
+              <option value="">—</option>
               {clientOptions.map((client) => (
                 <option key={client} value={client}>
                   {client}
@@ -410,7 +459,7 @@ export default function UploadPage() {
               value={form.client_name}
               onChange={(e) => setForm((old) => ({ ...old, client_name: e.target.value }))}
               placeholder="Es. Mario Rossi"
-              className="app-input placeholder:text-zinc-400"
+              className="app-input"
             />
           </label>
 
@@ -421,7 +470,7 @@ export default function UploadPage() {
               onChange={(e) => setForm((old) => ({ ...old, slot: e.target.value }))}
               className="app-input"
             >
-              <option value="">Seleziona slot</option>
+              <option value="">—</option>
               {slotOptions.map((slot) => (
                 <option key={slot} value={slot}>
                   {slot}
@@ -436,7 +485,7 @@ export default function UploadPage() {
               value={form.slot}
               onChange={(e) => setForm((old) => ({ ...old, slot: e.target.value }))}
               placeholder="Es. 1-A1"
-              className="app-input placeholder:text-zinc-400"
+              className="app-input"
             />
           </label>
 
@@ -467,29 +516,28 @@ export default function UploadPage() {
         </div>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <button type="button" onClick={onSave} disabled={!activeFile || saving} className="app-btn-primary px-8">
-            {saving ? 'Salvataggio…' : 'Salva prodotto (solo foto selezionata)'}
-          </button>
-          {fileQueue.length >= 2 && (
-            <button
-              type="button"
-              onClick={() => void onSaveAllPhotosOneProduct()}
-              disabled={saving}
-              className="app-btn-secondary px-6 py-2.5 text-sm disabled:opacity-60"
-            >
-              Salva 1 articolo con tutte le {fileQueue.length} foto
+          {fileQueue.length >= 2 ? (
+            <>
+              <button
+                type="button"
+                onClick={() => void onSaveAllPhotosOneProduct()}
+                disabled={saving}
+                className="app-btn-primary px-8 disabled:opacity-60"
+              >
+                {saving ? 'Salvataggio…' : `Salva articolo con tutte le ${fileQueue.length} foto`}
+              </button>
+              <button type="button" onClick={onSave} disabled={!activeFile || saving} className="app-btn-secondary px-6 py-2.5 text-sm disabled:opacity-60">
+                Solo la foto evidenziata (toglie 1 dalla coda)
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={onSave} disabled={!activeFile || saving} className="app-btn-primary px-8">
+              {saving ? 'Salvataggio…' : 'Salva prodotto'}
             </button>
           )}
         </div>
-        <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-          Per avere tutte le foto sotto lo stesso articolo in inventario (es. per Vinted), usa il secondo pulsante quando hai almeno 2 foto in coda. Il primo salva solo la foto evidenziata e toglie una voce dalla coda.
-        </p>
 
-        {message && (
-          <p className="mt-4 rounded-xl border border-zinc-200/90 bg-zinc-500/[0.04] px-4 py-3 text-sm leading-relaxed text-zinc-800 dark:border-zinc-600 dark:bg-zinc-500/10 dark:text-zinc-200">
-            {message}
-          </p>
-        )}
+        {message && <p className="app-inline-message">{message}</p>}
       </div>
     </section>
   )

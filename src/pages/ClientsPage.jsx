@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { exportClientPdf } from '../lib/exportClientPdf'
-import { fetchClientProfiles, supabase, upsertClientProfile } from '../lib/supabase'
+import { displayOptionalColumn, displaySku, fetchClientProfiles, supabase, upsertClientProfile } from '../lib/supabase'
 import { daysToExpiry, formatDate } from '../utils/date'
 
 function emptyProfileForm(clientName) {
@@ -62,7 +62,7 @@ export default function ClientsPage() {
     setProfileForms((prev) => {
       const next = { ...prev }
       for (const row of profileRows) {
-        next[row.client_name] = rowToForm(row)
+        if (row.client_name) next[row.client_name] = rowToForm(row)
       }
       return next
     })
@@ -75,7 +75,7 @@ export default function ClientsPage() {
   const clients = useMemo(() => {
     const map = new Map()
     for (const p of products) {
-      const key = p.client_name || 'Senza Nome'
+      const key = displayOptionalColumn(p.client_name) || 'Senza Nome'
       if (!map.has(key)) map.set(key, [])
       map.get(key).push(p)
     }
@@ -293,7 +293,7 @@ export default function ClientsPage() {
             <div className="overflow-auto px-2 pb-2">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="border-b border-stone-200 text-left text-xs font-semibold uppercase tracking-wider text-stone-500 dark:border-stone-700 dark:text-stone-400">
+                  <tr className="app-table-head">
                     <th className="p-3">SKU</th>
                     <th className="p-3">Descrizione</th>
                     <th className="p-3">Stato</th>
@@ -303,21 +303,20 @@ export default function ClientsPage() {
                 </thead>
                 <tbody>
                   {client.items.map((i) => (
-                    <tr
-                      key={i.id}
-                      className="border-b border-stone-100 transition hover:bg-stone-500/[0.05] dark:border-stone-800/90 dark:hover:bg-white/[0.03]"
-                    >
-                      <td className="p-3 font-mono text-xs text-stone-600 dark:text-stone-400">{i.sku}</td>
-                      <td className="p-3 text-stone-800 dark:text-stone-200">{i.description}</td>
+                    <tr key={i.id} className="app-table-row">
+                      <td className="p-3 font-mono text-xs text-zinc-600 dark:text-zinc-400">
+                        {displaySku(i.sku) || '—'}
+                      </td>
+                      <td className="p-3 text-zinc-800 dark:text-zinc-200">{i.description}</td>
                       <td className="p-3">
-                        <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-medium text-stone-700 dark:bg-stone-700/80 dark:text-stone-200">
+                        <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-700/80 dark:text-zinc-200">
                           {i.status}
                         </span>
                       </td>
-                      <td className="p-3 tabular-nums text-stone-800 dark:text-stone-200">
+                      <td className="p-3 tabular-nums text-zinc-800 dark:text-zinc-200">
                         EUR {Number(i.price || 0).toFixed(2)}
                       </td>
-                      <td className="p-3 text-xs text-stone-500 dark:text-stone-400">{formatDate(i.created_at)}</td>
+                      <td className="p-3 text-xs text-zinc-500 dark:text-zinc-400">{formatDate(i.created_at)}</td>
                     </tr>
                   ))}
                 </tbody>

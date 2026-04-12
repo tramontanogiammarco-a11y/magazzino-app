@@ -1,10 +1,11 @@
 create table if not exists public.products (
   id bigint generated always as identity primary key,
   photo_url text,
+  photo_urls jsonb not null default '[]'::jsonb,
   description text not null,
-  sku varchar(4) not null,
-  client_name text not null,
-  slot text not null,
+  sku varchar(4),
+  client_name text,
+  slot text,
   status text not null default 'Magazzino',
   price numeric(10,2),
   notes text,
@@ -12,7 +13,7 @@ create table if not exists public.products (
   loaded_at timestamptz,
   sold_at timestamptz,
   paid_at timestamptz,
-  constraint products_sku_format check (sku ~ '^[0-9]{4}$'),
+  constraint products_sku_format check (sku is null or trim(sku) = '' or sku ~ '^[0-9]{1,4}$'),
   constraint products_status_check check (
     status in (
       'Magazzino',
@@ -28,6 +29,23 @@ create table if not exists public.products (
     )
   )
 );
+
+-- Tabella già esistente (schema vecchio): aggiunge galleria senza ricreare la tabella
+alter table public.products
+  add column if not exists photo_urls jsonb not null default '[]'::jsonb;
+
+update public.products
+set photo_urls = jsonb_build_array(photo_url)
+where photo_url is not null
+  and jsonb_array_length(photo_urls) = 0;
+
+-- DB già creato senza queste modifiche: vedi anche sql/products_optional_sku_client_slot.sql
+alter table public.products alter column sku drop not null;
+alter table public.products alter column client_name drop not null;
+alter table public.products alter column slot drop not null;
+alter table public.products drop constraint if exists products_sku_format;
+alter table public.products
+  add constraint products_sku_format check (sku is null or trim(sku) = '' or sku ~ '^[0-9]{1,4}$');
 
 create or replace function public.set_loaded_at_on_caricato()
 returns trigger

@@ -12,7 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { supabase } from '../lib/supabase'
+import { displayOptionalColumn, supabase } from '../lib/supabase'
 import { BRAND_BAR_FILL } from '../constants/brand'
 import { STATUSES, STATUS_CHART_COLORS } from '../constants/statuses'
 
@@ -52,7 +52,7 @@ export default function StatsPage() {
   const clientRows = useMemo(() => {
     const map = new Map()
     for (const p of products) {
-      const name = p.client_name?.trim() || 'Senza nome'
+      const name = displayOptionalColumn(p.client_name).trim() || 'Senza nome'
       if (!map.has(name)) {
         map.set(name, {
           clientName: name,
@@ -88,36 +88,36 @@ export default function StatsPage() {
   )
 
   return (
-    <section className="space-y-8">
+    <section className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="app-card relative overflow-hidden p-5">
           <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-[#0ABAB5]/10 blur-2xl" />
           <p className="app-kicker mb-2">Inventario</p>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">Totale articoli</p>
+          <p className="app-text-muted-sm">Totale articoli</p>
           <p className="mt-1 text-3xl font-semibold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-50">{kpis.total}</p>
         </div>
         <div className="app-card relative overflow-hidden p-5">
           <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-[#0ABAB5]/10 blur-2xl" />
           <p className="app-kicker mb-2">Valore</p>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">Totale valore magazzino</p>
+          <p className="app-text-muted-sm">Totale valore magazzino</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-50">{eur(kpis.valoreMagazzino)}</p>
-          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-500">Somma prezzi · stati Magazzino e Caricato</p>
+          <p className="app-text-muted-xs mt-2">Somma prezzi · stati Magazzino e Caricato</p>
         </div>
         <div className="app-card relative overflow-hidden border border-[#0ABAB5]/25 p-5 dark:border-[#0ABAB5]/35">
           <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-[#0ABAB5]/12 blur-2xl" />
           <p className="app-kicker mb-2">Da saldare</p>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">Totale da pagare ai clienti</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-50">{eur(kpis.totaleDaPagareClienti)}</p>
-          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-500">Solo articoli in stato Venduto</p>
+          <p className="app-text-muted-xs mt-2">Solo articoli in stato Venduto</p>
         </div>
       </div>
 
       <div className="app-card p-5 sm:p-6">
         <h3 className="app-section-title mb-1">Distribuzione articoli per stato</h3>
-        <p className="mb-6 text-sm text-stone-600 dark:text-stone-400">Panoramica quantità per ogni stato operativo</p>
+        <p className="app-text-muted-sm mb-6">Panoramica quantità per ogni stato operativo</p>
         <div className="h-80 w-full min-h-[280px]">
           {pieByStatus.length === 0 ? (
-            <p className="text-sm text-stone-500">Nessun dato</p>
+            <p className="app-text-muted-sm">Nessun dato</p>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -150,13 +150,13 @@ export default function StatsPage() {
       </div>
 
       <div className="app-card overflow-hidden p-0">
-        <div className="border-b border-stone-200/80 px-5 py-4 dark:border-stone-700/80">
+        <div className="border-b border-zinc-200/80 px-5 py-4 dark:border-zinc-700/80">
           <h3 className="app-section-title">Riepilogo per cliente</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm">
             <thead>
-              <tr className="border-b border-stone-200 bg-stone-100/90 text-left text-xs font-semibold uppercase tracking-wider text-stone-600 dark:border-stone-800 dark:bg-stone-800/90 dark:text-stone-400">
+              <tr className="app-table-head">
                 <th className="px-4 py-3">Nome cliente</th>
                 <th className="px-4 py-3 tabular-nums">N° articoli totali</th>
                 <th className="px-4 py-3 tabular-nums">N° Venduto</th>
@@ -167,18 +167,15 @@ export default function StatsPage() {
             </thead>
             <tbody>
               {clientRows.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-stone-500">
+                <tr className="app-table-row">
+                  <td className="app-text-muted-sm px-4 py-10 text-center" colSpan={6}>
                     Nessun articolo
                   </td>
                 </tr>
               ) : (
                 clientRows.map((row) => (
-                  <tr
-                    key={row.clientName}
-                    className="border-b border-stone-100 transition hover:bg-stone-500/[0.04] dark:border-stone-800/80 dark:hover:bg-white/[0.03]"
-                  >
-                    <td className="px-4 py-3 font-medium text-stone-900 dark:text-stone-100">{row.clientName}</td>
+                  <tr key={row.clientName} className="app-table-row">
+                    <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">{row.clientName}</td>
                     <td className="px-4 py-3 tabular-nums">{row.total}</td>
                     <td className="px-4 py-3 tabular-nums">{row.venduto}</td>
                     <td className="px-4 py-3 tabular-nums">{eur(row.totaleDaPagare)}</td>
@@ -194,14 +191,14 @@ export default function StatsPage() {
 
       <div className="app-card p-5 sm:p-6">
         <h3 className="app-section-title mb-1">Totale da pagare per cliente (stato Venduto)</h3>
-        <p className="mb-6 text-sm text-stone-600 dark:text-stone-400">Valore = somma prezzi degli articoli venduti</p>
+        <p className="app-text-muted-sm mb-6">Valore = somma prezzi degli articoli venduti</p>
         <div className="h-96 w-full min-h-[320px]">
           {barByClient.length === 0 ? (
-            <p className="text-sm text-stone-500">Nessun dato</p>
+            <p className="app-text-muted-sm">Nessun dato</p>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={barByClient} layout="vertical" margin={{ left: 8, right: 16 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-stone-200 dark:stroke-stone-600" />
+                <CartesianGrid strokeDasharray="3 3" className="stroke-zinc-200 dark:stroke-zinc-600" />
                 <XAxis type="number" tickFormatter={(v) => `€${v}`} />
                 <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }} />
                 <Tooltip

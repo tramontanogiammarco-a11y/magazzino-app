@@ -40,7 +40,7 @@ export default function Layout({ children }) {
     <div className="min-h-screen">
       <div className="app-page-bg" aria-hidden />
       <header className="sticky top-0 z-50 border-b border-zinc-200/80 bg-[var(--paper)]/85 backdrop-blur-xl dark:border-zinc-800/80 dark:bg-[var(--paper)]/80">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6">
+        <div className="mx-auto flex max-w-[min(96rem,calc(100vw-2rem))] flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <div className="flex min-w-0 flex-1 items-center gap-4">
             <div className="min-w-0">
               <p className="app-kicker mb-0.5">Telovendo</p>
@@ -63,8 +63,8 @@ export default function Layout({ children }) {
           </button>
         </div>
 
-        <div className="mx-auto max-w-6xl border-t border-zinc-200/70 px-4 pb-4 pt-3 dark:border-zinc-800/80 sm:px-6">
-          <nav className="flex flex-wrap gap-1.5" aria-label="Sezioni">
+        <div className="mx-auto max-w-[min(96rem,calc(100vw-2rem))] border-t border-zinc-200/70 px-4 pb-4 pt-3 dark:border-zinc-800/80 sm:px-6">
+          <nav className="flex flex-wrap gap-2" aria-label="Sezioni">
             {navItems.map((item) => (
               <NavLink
                 key={item.to}
@@ -72,7 +72,7 @@ export default function Layout({ children }) {
                 end={item.to === '/'}
                 className={({ isActive }) =>
                   [
-                    'rounded-full px-4 py-2 text-sm font-medium transition',
+                    'rounded-full px-5 py-2.5 text-base font-medium transition',
                     isActive
                       ? 'bg-[#0ABAB5] text-white shadow-sm'
                       : 'text-zinc-600 hover:bg-zinc-500/10 dark:text-zinc-400 dark:hover:bg-zinc-500/15',
@@ -86,10 +86,10 @@ export default function Layout({ children }) {
         </div>
       </header>
 
-      <div className="mx-auto max-w-6xl px-4 pb-12 pt-8 sm:px-6">
-        <header className="mb-8 max-w-2xl">
-          <h2 className="app-page-title text-2xl sm:text-[1.65rem]">{intro.title}</h2>
-          <p className="app-page-lead mt-1.5">{intro.subtitle}</p>
+      <div className="mx-auto max-w-[min(96rem,calc(100vw-2rem))] px-4 pb-12 pt-8 sm:px-6">
+        <header className="mb-8 max-w-none">
+          <h2 className="app-page-title text-2xl sm:text-3xl">{intro.title}</h2>
+          <p className="app-page-lead mt-2 text-base sm:text-lg">{intro.subtitle}</p>
         </header>
         <main>{children}</main>
       </div>

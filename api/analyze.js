@@ -14,7 +14,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const result = await analyzeAnthropic(req.body)
+    let body = req.body
+    if (typeof body === 'string') {
+      try {
+        body = JSON.parse(body || '{}')
+      } catch {
+        return res.status(400).json({ error: 'Body JSON non valido' })
+      }
+    }
+    const result = await analyzeAnthropic(body)
     return res.status(result.status).json(result.body)
   } catch (error) {
     console.error('api/analyze:', error)

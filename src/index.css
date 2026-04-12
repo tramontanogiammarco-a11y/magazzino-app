@@ -70,6 +70,12 @@
     color: var(--ink);
   }
 
+  .app-input::placeholder {
+    color: var(--ink-muted);
+    opacity: 0.5;
+    font-weight: 400;
+  }
+
   .app-input:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-soft);
@@ -80,7 +86,7 @@
   }
 
   .app-label {
-    @apply mb-1.5 block text-[13px] font-medium;
+    @apply mb-1.5 block text-sm font-medium;
     color: var(--ink-muted);
   }
 
@@ -125,5 +131,68 @@
 
   .app-page-lead {
     @apply text-[15px] leading-relaxed text-zinc-600 dark:text-zinc-400;
+  }
+
+  /** Testo secondario (stesso tono su tutte le pagine) */
+  .app-text-muted {
+    color: var(--ink-muted);
+  }
+
+  .app-text-muted-sm {
+    @apply text-sm;
+    color: var(--ink-muted);
+  }
+
+  .app-text-muted-xs {
+    @apply text-xs;
+    color: var(--ink-muted);
+  }
+
+  /** Tabelle inventario / clienti / statistiche */
+  .app-table-head {
+    @apply border-b text-left text-xs font-semibold uppercase tracking-wider;
+    border-color: var(--stroke);
+    color: var(--ink-muted);
+    background: rgba(24, 24, 27, 0.04);
+  }
+
+  .dark .app-table-head {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .app-table-row {
+    @apply border-t transition-colors;
+    border-color: var(--stroke);
+  }
+
+  .app-table-row:hover {
+    background: rgba(24, 24, 27, 0.03);
+  }
+
+  .dark .app-table-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  /** Etichette compatte sopra i campi (inventario) */
+  .app-overline-label {
+    @apply text-xs font-semibold uppercase tracking-wide sm:text-[13px];
+    color: var(--ink-muted);
+  }
+
+  .app-link-accent {
+    @apply font-medium underline-offset-2 transition hover:underline;
+    color: var(--accent);
+  }
+
+  /** Messaggio feedback (upload, form) */
+  .app-inline-message {
+    @apply mt-4 whitespace-pre-line rounded-xl border px-4 py-3 text-sm leading-relaxed;
+    border-color: var(--stroke);
+    background: rgba(24, 24, 27, 0.03);
+    color: var(--ink);
+  }
+
+  .dark .app-inline-message {
+    background: rgba(255, 255, 255, 0.06);
   }
 }

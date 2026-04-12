@@ -1,4 +1,8 @@
 import JSZip from 'jszip'
+import { displaySku } from './supabase'
+
+/** Suffisso in `notes` quando `photo_urls` non è disponibile su Supabase (stesso articolo, più URL). */
+const MAG_GALLERY_MARK = '\n\n__MAG_GALLERY__\n'
 
 /**
  * Normalizza il campo jsonb `photo_urls` da PostgREST/Supabase:
@@ -44,17 +48,78 @@ function dedupeUrls(urls) {
   return out
 }
 
+/** Legge l’array URL salvato nel suffisso `__MAG_GALLERY__` delle note. */
+export function parseGalleryUrlsFromNotes(notes) {
+  if (!notes || typeof notes !== 'string') return []
+  const i = notes.indexOf(MAG_GALLERY_MARK)
+  if (i === -1) return []
+  const jsonPart = notes.slice(i + MAG_GALLERY_MARK.length).trim()
+  try {
+    return dedupeUrls(parsePhotoUrlsArray(JSON.parse(jsonPart)))
+  } catch {
+    return []
+  }
+}
+
+/** Rimuove il blocco galleria (per mostrare le note all’utente). */
+export function stripGalleryFromNotes(notes) {
+  if (!notes || typeof notes !== 'string') return ''
+  const i = notes.indexOf(MAG_GALLERY_MARK)
+  if (i === -1) return notes
+  return notes.slice(0, i).trimEnd()
+}
+
+/** Note visibili in UI (senza blocco tecnico). */
+export function notesVisibleToUser(notes) {
+  return stripGalleryFromNotes(notes ?? '')
+}
+
+/** Accoda alle note il JSON delle URL (≥2). */
+export function encodeNotesWithGallery(userNotes, urls) {
+  const arr = dedupeUrls((urls || []).map((u) => String(u).trim()).filter(Boolean))
+  if (arr.length < 2) return (userNotes || '').trim() || null
+  const head = stripGalleryFromNotes(userNotes || '').trimEnd()
+  const suffix = `${MAG_GALLERY_MARK}${JSON.stringify(arr)}`
+  return head ? `${head}${suffix}` : suffix
+}
+
+/**
+ * Dopo modifica note in inventario: mantiene il blocco galleria se c’era.
+ * @param {string} previousFull note complete dal DB
+ * @param {string} newVisible testo che l’utente vede/modifica
+ */
+export function mergeUserNotesEdit(previousFull, newVisible) {
+  const preserved = parseGalleryUrlsFromNotes(previousFull ?? '')
+  if (preserved.length >= 2) {
+    return encodeNotesWithGallery(newVisible, preserved)
+  }
+  return newVisible
+}
+
 /** Tutte le URL pubbliche dell'articolo (ordine galleria, senza duplicati). */
 export function getAllProductPhotoUrls(product) {
   if (!product) return []
 
-  const fromColumn = dedupeUrls(parsePhotoUrlsArray(product.photo_urls))
   const main = product.photo_url ? String(product.photo_url).trim() : ''
+  const raw = product.photo_urls ?? product.photoUrls
+  let fromColumn = dedupeUrls(parsePhotoUrlsArray(raw))
+  const fromNotes = parseGalleryUrlsFromNotes(product.notes ?? '')
 
-  if (fromColumn.length > 0) {
-    return fromColumn
+  if (fromColumn.length >= 2) {
+    if (main && !fromColumn.includes(main)) fromColumn = [main, ...fromColumn]
+    return dedupeUrls(fromColumn)
   }
-  return main ? [main] : []
+
+  if (fromNotes.length >= 2) {
+    let u = dedupeUrls(fromNotes)
+    if (main && !u.includes(main)) u = [main, ...u]
+    return u
+  }
+
+  let urls = fromColumn.length ? fromColumn : fromNotes
+  if (main && urls.length && !urls.includes(main)) urls = [main, ...urls]
+  if (urls.length === 0 && main) return [main]
+  return dedupeUrls(urls)
 }
 
 function extFromMime(mime) {
@@ -74,7 +139,8 @@ export async function downloadProductPhotosZip(product) {
   if (!urls.length) throw new Error('Nessuna foto da scaricare')
 
   const zip = new JSZip()
-  const base = String(product.sku || product.id || 'articolo').replace(/[^\w.-]+/g, '-')
+  const skuLabel = displaySku(product.sku)
+  const base = String(skuLabel || product.id || 'articolo').replace(/[^\w.-]+/g, '-')
 
   for (let i = 0; i < urls.length; i++) {
     const url = urls[i]

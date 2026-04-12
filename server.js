@@ -13,7 +13,15 @@ app.use(express.json({ limit: '15mb' }))
 
 app.post('/api/analyze', async (req, res) => {
   try {
-    const result = await analyzeAnthropic(req.body || {})
+    let body = req.body
+    if (typeof body === 'string') {
+      try {
+        body = JSON.parse(body || '{}')
+      } catch {
+        return res.status(400).json({ error: 'Body JSON non valido' })
+      }
+    }
+    const result = await analyzeAnthropic(body || {})
     return res.status(result.status).json(result.body)
   } catch (error) {
     console.log('Errore completo /api/analyze:', error)
@@ -22,6 +30,7 @@ app.post('/api/analyze', async (req, res) => {
 })
 
 app.listen(PORT, () => {
-  console.log('API KEY:', process.env.ANTHROPIC_API_KEY ? 'presente' : 'MANCANTE')
-  console.log(`Server avviato su http://localhost:${PORT}`)
+  console.log('ANTHROPIC_API_KEY:', process.env.ANTHROPIC_API_KEY ? 'presente' : 'MANCANTE')
+  console.log('ANTHROPIC_MODEL:', process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929 (default)')
+  console.log(`API Telovendo AI (POST /api/analyze): http://localhost:${PORT}`)
 })
