@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { extractProductDataFromPhoto } from '../lib/gemini'
 import { notifyGoogleSheetsNewProduct } from '../lib/googleSheets'
-import { getDistinctProductFields, supabase, uploadProductPhoto } from '../lib/supabase'
+import { getDistinctProductFields, supabase, uploadProductPhoto, uploadProductPhotos } from '../lib/supabase'
 import { STATUSES } from '../constants/statuses'
 
 const initialForm = {
@@ -166,6 +166,7 @@ export default function UploadPage() {
       const photoUrl = await uploadProductPhoto(activeFile)
       const payload = {
         photo_url: photoUrl,
+        photo_urls: [photoUrl],
         description: form.description,
         sku: form.sku,
         client_name: clientName,
@@ -203,6 +204,70 @@ export default function UploadPage() {
           ? `Articolo salvato. Restano ${remaining} foto in coda: conferma i dati per la prossima.`
           : 'Articolo salvato con successo.',
       )
+      loadDistinctValues()
+    } catch (error) {
+      setMessage(`Errore salvataggio: ${error.message}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /** Un solo articolo con tutte le foto in coda (stesso record, galleria per Vinted / inventario). */
+  const onSaveAllPhotosOneProduct = async () => {
+    if (fileQueue.length < 2) return
+    setSaving(true)
+    setMessage('')
+
+    try {
+      const clientName = form.client_name?.trim() ?? ''
+      const slotValue = form.slot?.trim() ?? ''
+      if (!clientName) {
+        setMessage('Indica un cliente dal menu oppure scrivi il nome nel campo sotto.')
+        return
+      }
+      if (!slotValue) {
+        setMessage('Indica uno slot dal menu oppure scrivilo nel campo sotto.')
+        return
+      }
+
+      const files = fileQueue.map((item) => item.file)
+      const urls = await uploadProductPhotos(files)
+      const payload = {
+        photo_url: urls[0],
+        photo_urls: urls,
+        description: form.description,
+        sku: form.sku,
+        client_name: clientName,
+        slot: slotValue,
+        status: form.status,
+        price: form.price ? Number(form.price) : null,
+        notes: form.notes || null,
+      }
+
+      if (form.status === 'Caricato') payload.loaded_at = new Date().toISOString()
+      if (form.status === 'Venduto') payload.sold_at = new Date().toISOString()
+      if (form.status === 'Pagato') payload.paid_at = new Date().toISOString()
+
+      const { error } = await supabase.from('products').insert(payload)
+      if (error) throw error
+
+      try {
+        await notifyGoogleSheetsNewProduct({
+          description: form.description,
+          status: form.status,
+          price: form.price ? Number(form.price) : null,
+          client_name: clientName,
+          sku: form.sku,
+          slot: slotValue,
+        })
+      } catch {
+        // Webhook best-effort
+      }
+
+      setFileQueue([])
+      setForm(initialForm)
+      setActiveIndex(0)
+      setMessage(`Articolo salvato con ${urls.length} foto in galleria. Apri l’inventario per vederle e scaricarle in ZIP.`)
       loadDistinctValues()
     } catch (error) {
       setMessage(`Errore salvataggio: ${error.message}`)
@@ -401,9 +466,24 @@ export default function UploadPage() {
           </label>
         </div>
 
-        <button onClick={onSave} disabled={!activeFile || saving} className="app-btn-primary mt-6 px-8">
-          {saving ? 'Salvataggio…' : 'Salva prodotto'}
-        </button>
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <button type="button" onClick={onSave} disabled={!activeFile || saving} className="app-btn-primary px-8">
+            {saving ? 'Salvataggio…' : 'Salva prodotto (solo foto selezionata)'}
+          </button>
+          {fileQueue.length >= 2 && (
+            <button
+              type="button"
+              onClick={() => void onSaveAllPhotosOneProduct()}
+              disabled={saving}
+              className="app-btn-secondary px-6 py-2.5 text-sm disabled:opacity-60"
+            >
+              Salva 1 articolo con tutte le {fileQueue.length} foto
+            </button>
+          )}
+        </div>
+        <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+          Per avere tutte le foto sotto lo stesso articolo in inventario (es. per Vinted), usa il secondo pulsante quando hai almeno 2 foto in coda. Il primo salva solo la foto evidenziata e toglie una voce dalla coda.
+        </p>
 
         {message && (
           <p className="mt-4 rounded-xl border border-zinc-200/90 bg-zinc-500/[0.04] px-4 py-3 text-sm leading-relaxed text-zinc-800 dark:border-zinc-600 dark:bg-zinc-500/10 dark:text-zinc-200">

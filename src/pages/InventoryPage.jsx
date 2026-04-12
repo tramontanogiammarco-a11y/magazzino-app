@@ -3,6 +3,7 @@ import { getDistinctProductFields, supabase } from '../lib/supabase'
 import { STATUSES, STATUS_SELECT_CLASSES, normalizeStatus } from '../constants/statuses'
 import ExpiryBadge from '../components/ExpiryBadge'
 import { daysToExpiry, formatDate } from '../utils/date'
+import { downloadProductPhotosZip, getAllProductPhotoUrls } from '../lib/productPhotos'
 
 export default function InventoryPage() {
   const [products, setProducts] = useState([])
@@ -10,6 +11,9 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true)
   const [clients, setClients] = useState([])
   const [slots, setSlots] = useState([])
+  const [galleryProduct, setGalleryProduct] = useState(null)
+  const [zipLoading, setZipLoading] = useState(false)
+  const [zipError, setZipError] = useState('')
 
   const fetchProducts = async () => {
     setLoading(true)
@@ -168,20 +172,46 @@ export default function InventoryPage() {
                   className="border-t border-stone-200/80 transition hover:bg-stone-500/[0.04] dark:border-stone-700/80 dark:hover:bg-white/[0.03]"
                 >
                   <td className="p-3 align-top">
-                    {p.photo_url ? (
-                      <img src={p.photo_url} alt="" className="h-20 w-20 rounded-lg border border-stone-200 object-cover dark:border-stone-600" />
-                    ) : (
-                      <span className="text-stone-400">—</span>
-                    )}
+                    {(() => {
+                      const urls = getAllProductPhotoUrls(p)
+                      if (!urls.length) {
+                        return <span className="text-stone-400">—</span>
+                      }
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => setGalleryProduct(p)}
+                          className="group relative block text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ABAB5] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-stone-900"
+                          aria-label={`Apri galleria foto, ${urls.length} immagini`}
+                        >
+                          <img
+                            src={urls[0]}
+                            alt=""
+                            className="h-20 w-20 rounded-lg border border-stone-200 object-cover transition group-hover:opacity-90 dark:border-stone-600"
+                          />
+                          {urls.length > 1 && (
+                            <span className="absolute -bottom-1 -right-1 rounded-full bg-[#0ABAB5] px-1.5 py-0.5 text-[10px] font-bold text-white shadow">
+                              +{urls.length - 1}
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })()}
                   </td>
                   <td className="p-3 align-top">
-                    <div className="font-medium text-stone-900 dark:text-stone-100">{p.description}</div>
-                    <div className="text-xs text-stone-500 dark:text-stone-400">
-                      SKU {p.sku} · {p.client_name} · {p.slot}
-                    </div>
-                    <div className="mt-1.5">
-                      <ExpiryBadge loadedAt={p.loaded_at} status={p.status} />
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setGalleryProduct(p)}
+                      className="block w-full rounded-lg py-0.5 text-left transition hover:bg-stone-500/[0.07] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ABAB5] dark:hover:bg-white/[0.04]"
+                    >
+                      <div className="font-medium text-stone-900 dark:text-stone-100">{p.description}</div>
+                      <div className="text-xs text-stone-500 dark:text-stone-400">
+                        SKU {p.sku} · {p.client_name} · {p.slot} · {getAllProductPhotoUrls(p).length} foto
+                      </div>
+                      <div className="mt-1.5">
+                        <ExpiryBadge loadedAt={p.loaded_at} status={p.status} />
+                      </div>
+                    </button>
                   </td>
                   <td className="p-3 align-top">
                     <select
@@ -224,6 +254,80 @@ export default function InventoryPage() {
           </tbody>
         </table>
       </div>
+
+      {galleryProduct ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="gallery-title"
+          onClick={() => {
+            setGalleryProduct(null)
+            setZipError('')
+          }}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-stone-200 bg-[var(--paper)] shadow-xl dark:border-stone-600 dark:bg-stone-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-stone-200 px-5 py-4 dark:border-stone-700">
+              <div className="min-w-0">
+                <h2 id="gallery-title" className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+                  Foto articolo
+                </h2>
+                <p className="mt-1 truncate text-sm text-stone-600 dark:text-stone-400">
+                  SKU {galleryProduct.sku} · {galleryProduct.description}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setGalleryProduct(null)
+                  setZipError('')
+                }}
+                className="shrink-0 rounded-lg px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-500/10 dark:text-stone-400"
+              >
+                Chiudi
+              </button>
+            </div>
+            <div className="max-h-[55vh] overflow-y-auto p-5">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {getAllProductPhotoUrls(galleryProduct).map((url, i) => (
+                  <a
+                    key={url + i}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block overflow-hidden rounded-xl border border-stone-200 bg-stone-100 dark:border-stone-600 dark:bg-stone-800"
+                  >
+                    <img src={url} alt="" className="aspect-square w-full object-cover" />
+                  </a>
+                ))}
+              </div>
+              {zipError ? <p className="mt-3 text-sm text-red-600 dark:text-red-400">{zipError}</p> : null}
+            </div>
+            <div className="flex flex-wrap gap-3 border-t border-stone-200 bg-stone-50/80 px-5 py-4 dark:border-stone-700 dark:bg-stone-950/50">
+              <button
+                type="button"
+                disabled={zipLoading}
+                onClick={() => {
+                  setZipError('')
+                  setZipLoading(true)
+                  void downloadProductPhotosZip(galleryProduct)
+                    .catch((err) => setZipError(err.message || 'Download fallito'))
+                    .finally(() => setZipLoading(false))
+                }}
+                className="app-btn-primary px-5 py-2.5 text-sm disabled:opacity-60"
+              >
+                {zipLoading ? 'Creazione ZIP…' : 'Scarica tutte le foto (ZIP per Vinted)'}
+              </button>
+              <p className="self-center text-xs text-stone-500 dark:text-stone-400">
+                Il file contiene tutte le immagini numerate (SKU-01, SKU-02, …).
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }

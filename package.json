@@ -18,6 +18,7 @@
     "express": "^5.2.1",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
+    "jszip": "^3.10.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.14.0",
