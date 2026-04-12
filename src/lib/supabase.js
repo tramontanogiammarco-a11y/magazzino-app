@@ -44,3 +44,12 @@ export async function uploadProductPhoto(file) {
   const { data } = supabase.storage.from('products').getPublicUrl(path)
   return data.publicUrl
 }
+
+/** Carica più file in ordine; restituisce gli URL pubblici. */
+export async function uploadProductPhotos(files) {
+  const urls = []
+  for (const file of files) {
+    urls.push(await uploadProductPhoto(file))
+  }
+  return urls
+}
