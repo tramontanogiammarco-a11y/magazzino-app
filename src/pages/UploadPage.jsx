@@ -71,6 +71,7 @@ export default function UploadPage() {
   const prevQueueLengthRef = useRef(0)
   const autoAnalyzeDebounceRef = useRef(0)
   const analyzeInFlightRef = useRef(false)
+  const analyzeBaselineRef = useRef(null)
 
   const safeActiveIndex = useMemo(() => {
     if (fileQueue.length === 0) return 0
@@ -153,29 +154,56 @@ export default function UploadPage() {
     if (!filesToAnalyze?.length) return
     if (analyzeInFlightRef.current) return
     analyzeInFlightRef.current = true
+    analyzeBaselineRef.current = {
+      description: form.description ?? '',
+      sku: form.sku ?? '',
+      client_name: form.client_name ?? '',
+      slot: form.slot ?? '',
+      notes: form.notes ?? '',
+    }
     setLoadingVision(true)
     setMessage('')
     try {
       const data = await extractProductDataFromPhotos(filesToAnalyze)
       setForm((old) => {
+        const baseline = analyzeBaselineRef.current || {
+          description: '',
+          sku: '',
+          client_name: '',
+          slot: '',
+          notes: '',
+        }
         const aiNotes = (data.notes ?? '').toString().trim()
+        const aiDescription = (data.description ?? '').toString()
+        const aiSku = (data.sku ?? '').toString()
+        const aiClient = (data.client_name ?? data.clientName ?? '').toString().trim()
+        const aiSlot = (data.slot ?? '').toString().trim()
+
+        const keepManual = (field, aiValue) => {
+          const current = (old[field] ?? '').toString()
+          const beforeAnalyze = (baseline[field] ?? '').toString()
+          if (current !== beforeAnalyze) return current
+          return aiValue || current
+        }
+
         return {
           ...old,
           ...data,
-          client_name: (data.client_name ?? data.clientName ?? old.client_name ?? '').toString().trim(),
-          slot: (data.slot ?? old.slot ?? '').toString().trim(),
-          description: (data.description ?? old.description ?? '').toString(),
-          sku: (data.sku ?? old.sku ?? '').toString(),
-          notes: aiNotes.length > 0 ? aiNotes : old.notes,
+          client_name: keepManual('client_name', aiClient),
+          slot: keepManual('slot', aiSlot),
+          description: keepManual('description', aiDescription),
+          sku: keepManual('sku', aiSku),
+          notes: keepManual('notes', aiNotes.length > 0 ? aiNotes : ''),
         }
       })
     } catch (error) {
       setMessage(`Errore Telovendo AI: ${error.message}`)
     } finally {
+      analyzeBaselineRef.current = null
       analyzeInFlightRef.current = false
       setLoadingVision(false)
     }
-  }, [])
+  }, [form.client_name, form.description, form.notes, form.sku, form.slot])
 
   /** Dopo nuove foto in coda: analisi automatica (debounce) con tutte le foto attuali. */
   useEffect(() => {
