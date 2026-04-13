@@ -4,6 +4,7 @@ import Layout from './components/Layout'
 
 const UploadPage = lazy(() => import('./pages/UploadPage'))
 const InventoryPage = lazy(() => import('./pages/InventoryPage'))
+const DeletedItemsPage = lazy(() => import('./pages/DeletedItemsPage'))
 const ClientsPage = lazy(() => import('./pages/ClientsPage'))
 const StatsPage = lazy(() => import('./pages/StatsPage'))
 
@@ -27,6 +28,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<UploadPage />} />
             <Route path="/inventario" element={<InventoryPage />} />
+            <Route path="/eliminati" element={<DeletedItemsPage />} />
             <Route path="/clienti" element={<ClientsPage />} />
             <Route path="/statistiche" element={<StatsPage />} />
           </Routes>

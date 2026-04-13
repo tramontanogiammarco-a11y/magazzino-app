@@ -20,12 +20,12 @@ create table if not exists public.products (
       'Caricato',
       'Venduto',
       'Pagato',
-      'Spedito',
       'Reso',
       'Da Buttare',
       'Abbassa di Prezzo',
       'Beneficienza',
-      'Ridato al Cliente'
+      'Ridato al Cliente',
+      'Eliminato'
     )
   )
 );

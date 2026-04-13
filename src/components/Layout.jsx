@@ -2,8 +2,9 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { useTheme } from '../context/ThemeContext'
 
 const navItems = [
-  { to: '/', label: 'Upload' },
+  { to: '/', label: 'Carica nuovo prodotto' },
   { to: '/inventario', label: 'Inventario' },
+  { to: '/eliminati', label: 'Eliminati' },
   { to: '/clienti', label: 'Clienti' },
   { to: '/statistiche', label: 'Statistiche' },
 ]
@@ -11,6 +12,7 @@ const navItems = [
 const routeIntro = {
   '/': { title: 'Nuovo articolo', subtitle: 'Foto, estrazione AI e salvataggio in magazzino' },
   '/inventario': { title: 'Inventario', subtitle: '' },
+  '/eliminati': { title: 'Articoli eliminati', subtitle: 'Storico articoli archiviati con possibilita di ripristino' },
   '/clienti': { title: 'Clienti', subtitle: 'Riepilogo per venditore e export PDF' },
   '/statistiche': { title: 'Statistiche', subtitle: 'KPI, distribuzione stati e totali da pagare' },
 }

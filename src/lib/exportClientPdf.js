@@ -110,6 +110,7 @@ function drawSectionLabel(doc, label, x, y) {
 }
 
 export async function exportClientPdf({ clientName, items, toPay }) {
+  const visibleItems = items.filter((i) => i.status !== 'Eliminato')
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
   const pageH = doc.internal.pageSize.getHeight()
@@ -119,11 +120,11 @@ export async function exportClientPdf({ clientName, items, toPay }) {
   doc.setFillColor(...PAGE_BG)
   doc.rect(0, 0, pageW, pageH, 'F')
 
-  const nTot = items.length
-  const nMag = items.filter((i) => i.status === 'Magazzino').length
-  const nCar = items.filter((i) => i.status === 'Caricato').length
-  const nVen = items.filter((i) => i.status === 'Venduto').length
-  const nPag = items.filter((i) => i.status === 'Pagato').length
+  const nTot = visibleItems.length
+  const nMag = visibleItems.filter((i) => i.status === 'Magazzino').length
+  const nCar = visibleItems.filter((i) => i.status === 'Caricato').length
+  const nVen = visibleItems.filter((i) => i.status === 'Venduto').length
+  const nPag = visibleItems.filter((i) => i.status === 'Pagato').length
   const nOther = nTot - nMag - nCar - nVen - nPag
 
   const headerCardH = 34
@@ -190,7 +191,7 @@ export async function exportClientPdf({ clientName, items, toPay }) {
   autoTable(doc, {
     startY: y,
     head: [['SKU', 'Descrizione', 'Stato', 'Prezzo', 'Creato']],
-    body: items.map((item) => [
+    body: visibleItems.map((item) => [
       String(item.sku ?? ''),
       String(item.description ?? ''),
       String(item.status ?? ''),

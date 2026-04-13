@@ -12,11 +12,11 @@ ALTER TABLE public.products ADD CONSTRAINT products_status_check CHECK (
     'Caricato',
     'Venduto',
     'Pagato',
-    'Spedito',
     'Reso',
     'Da Buttare',
     'Abbassa di Prezzo',
     'Beneficienza',
-    'Ridato al Cliente'
+    'Ridato al Cliente',
+    'Eliminato'
   )
 );

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { exportClientPdf } from '../lib/exportClientPdf'
 import { clientShareFromSalePrice } from '../lib/vintedCommission'
 import { displayOptionalColumn, displaySku, fetchClientProfiles, supabase, upsertClientProfile } from '../lib/supabase'
+import { isDeletedStatus } from '../constants/statuses'
 import { daysToExpiry, formatDate } from '../utils/date'
 
 function emptyProfileForm(clientName) {
@@ -76,6 +77,7 @@ export default function ClientsPage() {
   const clients = useMemo(() => {
     const map = new Map()
     for (const p of products) {
+      if (isDeletedStatus(p.status)) continue
       const key = displayOptionalColumn(p.client_name) || 'Senza Nome'
       if (!map.has(key)) map.set(key, [])
       map.get(key).push(p)
@@ -121,7 +123,7 @@ export default function ClientsPage() {
     setSavingClient(clientName)
     setSaveMessage((m) => ({ ...m, [clientName]: '' }))
     try {
-      await upsertClientProfile({
+      const where = await upsertClientProfile({
         client_name: clientName,
         first_name: form.first_name.trim() || null,
         last_name: form.last_name.trim() || null,
@@ -130,9 +132,17 @@ export default function ClientsPage() {
         email: form.email.trim() || null,
         iban: form.iban.replace(/\s/g, '').trim() || null,
       })
-      setSaveMessage((m) => ({ ...m, [clientName]: 'Salvato.' }))
+      setSaveMessage(
+        (m) => ({
+          ...m,
+          [clientName]:
+            where === 'local'
+              ? 'Salvato nel browser (questo PC). Supabase non vede ancora la tabella client_profiles: quando la crei, salva di nuovo per copiare i dati online.'
+              : 'Salvato.',
+        }),
+      )
     } catch (e) {
-      setSaveMessage((m) => ({ ...m, [clientName]: `Errore: ${e.message}` }))
+      setSaveMessage((m) => ({ ...m, [clientName]: `Errore: ${e?.message || String(e)}` }))
     } finally {
       setSavingClient(null)
     }
@@ -283,7 +293,7 @@ export default function ClientsPage() {
                     </button>
                     {saveMessage[client.clientName] ? (
                       <span
-                        className={`text-sm ${saveMessage[client.clientName].startsWith('Errore') ? 'text-red-600 dark:text-red-400' : 'text-zinc-600 dark:text-zinc-400'}`}
+                        className={`max-w-full text-sm sm:max-w-xl ${saveMessage[client.clientName].startsWith('Errore') ? 'whitespace-pre-wrap break-words text-red-600 dark:text-red-400' : 'text-zinc-600 dark:text-zinc-400'}`}
                       >
                         {saveMessage[client.clientName]}
                       </span>

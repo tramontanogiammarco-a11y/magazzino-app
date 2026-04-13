@@ -51,10 +51,69 @@ export function displaySku(sku) {
   return s
 }
 
+/** PostgREST: tabella assente o non ancora nella cache API (PGRST205 / "schema cache"). */
+function isClientProfilesUnavailableError(error) {
+  if (!error) return false
+  const code = String(error.code ?? '')
+  if (/PGRST205/i.test(code)) return true
+  if (code === '42P01') return true
+  const msg = [error.message, error.details, error.hint, code].filter(Boolean).join(' ')
+  if (!/client_profiles/i.test(msg)) return false
+  return /schema cache|Could not find the table|not find the table|does not exist|relation/i.test(msg)
+}
+
+/** Fallback se Supabase non espone `client_profiles`: stesso browser, stesso PC. */
+const LOCAL_PROFILES_KEY = 'magazzino_client_profiles_v1'
+
+function readLocalProfilesMap() {
+  if (typeof localStorage === 'undefined') return {}
+  try {
+    const raw = localStorage.getItem(LOCAL_PROFILES_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    return parsed
+  } catch {
+    return {}
+  }
+}
+
+function writeLocalProfile(row) {
+  if (typeof localStorage === 'undefined') return
+  const map = readLocalProfilesMap()
+  const key = String(row.client_name)
+  map[key] = {
+    client_name: key,
+    first_name: row.first_name ?? null,
+    last_name: row.last_name ?? null,
+    phone: row.phone ?? null,
+    expected_revenue: row.expected_revenue ?? null,
+    email: row.email ?? null,
+    iban: row.iban ?? null,
+  }
+  localStorage.setItem(LOCAL_PROFILES_KEY, JSON.stringify(map))
+}
+
+function mergeRemoteAndLocalProfiles(remoteRows) {
+  const remote = remoteRows || []
+  const localMap = readLocalProfilesMap()
+  const byName = new Map(remote.map((r) => [String(r.client_name), r]))
+  for (const [name, loc] of Object.entries(localMap)) {
+    if (!byName.has(name)) byName.set(name, loc)
+  }
+  return [...byName.values()]
+}
+
 export async function fetchClientProfiles() {
   const { data, error } = await supabase.from('client_profiles').select('*')
-  if (error) throw error
-  return data || []
+  if (!error) {
+    return mergeRemoteAndLocalProfiles(data || [])
+  }
+  if (isClientProfilesUnavailableError(error)) {
+    console.warn('[magazzino] client_profiles Supabase non disponibile; uso profili salvati nel browser.')
+    return Object.values(readLocalProfilesMap())
+  }
+  throw error
 }
 
 /** Profilo anagrafico considerato completo (allineato alla pagina Clienti). */
@@ -64,9 +123,21 @@ export function isClientProfileComplete(row) {
   return t(row.first_name) && t(row.last_name) && t(row.phone) && t(row.email) && t(row.iban)
 }
 
+/**
+ * @returns {'supabase' | 'local'} dove è stato salvato
+ */
 export async function upsertClientProfile(row) {
   const { error } = await supabase.from('client_profiles').upsert(row, { onConflict: 'client_name' })
-  if (error) throw error
+  if (!error) {
+    writeLocalProfile(row)
+    return 'supabase'
+  }
+  if (isClientProfilesUnavailableError(error)) {
+    writeLocalProfile(row)
+    console.warn('[magazzino] client_profiles salvato solo nel browser (tabella non visibile all’API).')
+    return 'local'
+  }
+  throw error
 }
 
 export async function uploadProductPhoto(file) {
@@ -91,4 +162,21 @@ export async function uploadProductPhotos(files) {
     urls.push(await uploadProductPhoto(file))
   }
   return urls
+}
+
+function storagePathFromPublicUrl(url) {
+  const raw = String(url || '').trim()
+  if (!raw) return ''
+  const marker = '/storage/v1/object/public/products/'
+  const idx = raw.indexOf(marker)
+  if (idx === -1) return ''
+  return raw.slice(idx + '/storage/v1/object/public/'.length)
+}
+
+/** Best-effort cleanup of uploaded product photos from Supabase Storage. */
+export async function deleteProductPhotosByUrls(urls) {
+  const paths = [...new Set((urls || []).map(storagePathFromPublicUrl).filter(Boolean))]
+  if (!paths.length) return
+  const { error } = await supabase.storage.from('products').remove(paths)
+  if (error) throw error
 }

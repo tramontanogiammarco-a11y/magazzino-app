@@ -24,6 +24,13 @@ export function formatProductsInsertError(err) {
   if (/products_sku_format|sku_format|check constraint/i.test(raw) && /sku/i.test(raw)) {
     return 'SKU non valido: solo cifre, 1–4 caratteri, oppure lascia vuoto. Se il DB è ancora vincolato a 4 cifre fisse, esegui sql/products_optional_sku_client_slot.sql su Supabase.'
   }
+  if (/products_status_check|check constraint/i.test(raw) && /status/i.test(raw) && /Eliminato/i.test(raw)) {
+    return [
+      'Il database Supabase non accetta ancora lo stato "Eliminato".',
+      'Apri Supabase → SQL Editor → New query ed esegui il file `sql/products_add_eliminato_status.sql` del progetto.',
+      'Poi riprova a eliminare l’articolo.',
+    ].join('\n')
+  }
   if (isPhotoUrlsSchemaError(err)) {
     return [
       'Su Supabase non esiste ancora la colonna `photo_urls` sulla tabella `products`.',

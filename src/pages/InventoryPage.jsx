@@ -10,7 +10,7 @@ import {
   PLACEHOLDER_SLOT,
   supabase,
 } from '../lib/supabase'
-import { STATUSES, STATUS_SELECT_CLASSES, normalizeStatus } from '../constants/statuses'
+import { DELETED_STATUS, isDeletedStatus, STATUSES, STATUS_SELECT_CLASSES, normalizeStatus } from '../constants/statuses'
 import ExpiryBadge from '../components/ExpiryBadge'
 import InventoryTodoBar from '../components/InventoryTodoBar'
 import { daysToExpiry, formatDate } from '../utils/date'
@@ -189,28 +189,62 @@ export default function InventoryPage() {
     }
 
     const sheetKeys = ['status', 'price', 'description', 'sku', 'client_name', 'slot']
+    let sheetMsg = ''
     if (prev && sheetKeys.some((k) => Object.prototype.hasOwnProperty.call(patch, k))) {
       const merged = { ...prev, ...payload }
-      try {
-        await notifyGoogleSheetsNewProduct({
-          productId: id,
-          action: 'update',
-          description: String(merged.description ?? '').trim() || 'Articolo',
-          status: merged.status ?? '',
-          price: merged.price,
-          client_name: merged.client_name ?? '',
-          sku: merged.sku ?? '',
-          slot: merged.slot ?? '',
-        })
-      } catch {
-        // Webhook best-effort
+      const sheetResult = await notifyGoogleSheetsNewProduct({
+        productId: id,
+        action: 'update',
+        description: String(merged.description ?? '').trim() || 'Articolo',
+        status: merged.status ?? '',
+        price: merged.price,
+        client_name: merged.client_name ?? '',
+        sku: merged.sku ?? '',
+        slot: merged.slot ?? '',
+      })
+      if (!sheetResult.ok) {
+        sheetMsg = ` Foglio Google: ${sheetResult.message || 'aggiornamento remoto non attivo'}.`
       }
     }
 
-    showSaveHint(true, 'Salvato')
+    showSaveHint(true, sheetMsg ? `Salvato.${sheetMsg}` : 'Salvato')
     await fetchProducts(false)
     void fetchDistinctValues()
     return true
+  }
+
+  const deleteProduct = async (product) => {
+    if (!product?.id) return
+    const label = String(product.description || 'questo articolo').trim()
+    const ok = window.confirm(`Spostare "${label}" nella sezione articoli eliminati?`)
+    if (!ok) return
+
+    try {
+      const { error } = await supabase.from('products').update({ status: DELETED_STATUS }).eq('id', product.id)
+      if (error) throw error
+
+      let sheetMsg = ''
+      const sheetResult = await notifyGoogleSheetsNewProduct({
+        productId: product.id,
+        action: 'update',
+        description: String(product.description ?? '').trim() || 'Articolo',
+        status: DELETED_STATUS,
+        price: product.price,
+        client_name: product.client_name ?? '',
+        sku: product.sku ?? '',
+        slot: product.slot ?? '',
+      })
+      if (!sheetResult.ok) {
+        sheetMsg = ` Foglio Google: ${sheetResult.message || 'stato Eliminato non aggiornato'}.`
+      }
+
+      if (galleryProduct?.id === product.id) closeGallery()
+      showSaveHint(true, sheetMsg ? `Articolo eliminato.${sheetMsg}` : 'Articolo eliminato')
+      await fetchProducts(false)
+      void fetchDistinctValues()
+    } catch (error) {
+      showSaveHint(false, error?.message || 'Eliminazione non riuscita')
+    }
   }
 
   const persistGalleryOrder = async (urls) => {
@@ -229,23 +263,24 @@ export default function InventoryPage() {
     setGalleryProduct((prev) => (prev && prev.id === productId ? { ...prev, photo_url: first, photo_urls: urls } : prev))
   }
 
+  const activeProducts = useMemo(() => products.filter((p) => !isDeletedStatus(p.status)), [products])
   const incompleteClientNames = useMemo(() => {
     const byName = new Map(clientProfiles.map((r) => [r.client_name, r]))
     const out = new Set()
-    for (const p of products) {
+    for (const p of activeProducts) {
       const cn = displayOptionalColumn(p.client_name)
       if (!cn) continue
       const row = byName.get(cn)
       if (!isClientProfileComplete(row)) out.add(cn)
     }
     return out
-  }, [products, clientProfiles])
+  }, [activeProducts, clientProfiles])
 
   const todoCounts = useMemo(() => {
     let expiring = 0
     let missingDetails = 0
     let magazzino = 0
-    for (const p of products) {
+    for (const p of activeProducts) {
       if (isExpiringProduct(p)) expiring += 1
       if (productHasMissingListingDetails(p)) missingDetails += 1
       if (p.status === 'Magazzino') magazzino += 1
@@ -256,10 +291,10 @@ export default function InventoryPage() {
       missingDetails,
       magazzino,
     }
-  }, [products, incompleteClientNames])
+  }, [activeProducts, incompleteClientNames])
 
   const rows = useMemo(() => {
-    return products.filter((p) => {
+    return activeProducts.filter((p) => {
       if (
         filters.client &&
         !displayOptionalColumn(p.client_name).toLowerCase().includes(filters.client.toLowerCase())
@@ -282,7 +317,7 @@ export default function InventoryPage() {
 
       return true
     })
-  }, [products, filters, quickFilter, incompleteClientNames])
+  }, [activeProducts, filters, quickFilter, incompleteClientNames])
 
   const filterStatusClass = STATUSES.includes(filters.status)
     ? STATUS_SELECT_CLASSES[filters.status]
@@ -672,6 +707,13 @@ export default function InventoryPage() {
                       <div>Venduto: {formatDate(p.sold_at)}</div>
                       <div>Pagato: {formatDate(p.paid_at)}</div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => void deleteProduct(p)}
+                      className="mt-4 rounded-xl border-2 border-rose-300/80 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 dark:border-rose-700/70 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                    >
+                      Elimina articolo
+                    </button>
                   </td>
                 </tr>
               ))

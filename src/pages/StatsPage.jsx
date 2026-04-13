@@ -15,7 +15,7 @@ import {
 import { displayOptionalColumn, supabase } from '../lib/supabase'
 import { clientShareFromSalePrice, telovendoShareFromSalePrice } from '../lib/vintedCommission'
 import { BRAND_BAR_FILL } from '../constants/brand'
-import { STATUSES, STATUS_CHART_COLORS } from '../constants/statuses'
+import { isDeletedStatus, normalizeStatus, STATUSES, STATUS_CHART_COLORS } from '../constants/statuses'
 
 function eur(n) {
   return `EUR ${Number(n || 0).toFixed(2)}`
@@ -29,11 +29,12 @@ export default function StatsPage() {
   }, [])
 
   const kpis = useMemo(() => {
-    const total = products.length
-    const valoreMagazzino = products
+    const visibleProducts = products.filter((p) => !isDeletedStatus(p.status))
+    const total = visibleProducts.length
+    const valoreMagazzino = visibleProducts
       .filter((p) => p.status === 'Magazzino' || p.status === 'Caricato')
       .reduce((s, p) => s + Number(p.price || 0), 0)
-    const venduti = products.filter((p) => p.status === 'Venduto')
+    const venduti = visibleProducts.filter((p) => p.status === 'Venduto')
     const lordoVenduto = venduti.reduce((s, p) => s + Number(p.price || 0), 0)
     const quotaClientiVenduto = venduti.reduce((s, p) => s + clientShareFromSalePrice(p.price), 0)
     const quotaTelovendoVenduto = venduti.reduce((s, p) => s + telovendoShareFromSalePrice(p.price), 0)
@@ -43,7 +44,8 @@ export default function StatsPage() {
   const pieByStatus = useMemo(() => {
     const counts = Object.fromEntries(STATUSES.map((s) => [s, 0]))
     for (const p of products) {
-      const st = STATUSES.includes(p.status) ? p.status : 'Magazzino'
+      if (isDeletedStatus(p.status)) continue
+      const st = normalizeStatus(p.status)
       counts[st] = (counts[st] || 0) + 1
     }
     return STATUSES.map((status) => ({
@@ -56,6 +58,7 @@ export default function StatsPage() {
   const clientRows = useMemo(() => {
     const map = new Map()
     for (const p of products) {
+      if (isDeletedStatus(p.status)) continue
       const name = displayOptionalColumn(p.client_name).trim() || 'Senza nome'
       if (!map.has(name)) {
         map.set(name, {
@@ -70,13 +73,14 @@ export default function StatsPage() {
       }
       const row = map.get(name)
       row.total += 1
-      if (p.status === 'Venduto') {
+      const status = normalizeStatus(p.status)
+      if (status === 'Venduto') {
         row.venduto += 1
         row.totaleDaPagare += clientShareFromSalePrice(p.price)
         row.quotaTelovendo += telovendoShareFromSalePrice(p.price)
       }
-      if (p.status === 'Magazzino') row.magazzino += 1
-      if (p.status === 'Caricato') row.caricato += 1
+      if (status === 'Magazzino') row.magazzino += 1
+      if (status === 'Caricato') row.caricato += 1
     }
     return [...map.values()].sort((a, b) => a.clientName.localeCompare(b.clientName, 'it-IT'))
   }, [products])
