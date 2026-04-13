@@ -72,6 +72,7 @@ export default function UploadPage() {
   const autoAnalyzeDebounceRef = useRef(0)
   const analyzeInFlightRef = useRef(false)
   const analyzeBaselineRef = useRef(null)
+  const manualTouchedFieldsRef = useRef(new Set())
 
   const safeActiveIndex = useMemo(() => {
     if (fileQueue.length === 0) return 0
@@ -150,6 +151,16 @@ export default function UploadPage() {
     setFileQueue((q) => q.filter((_, j) => j !== index))
   }
 
+  const markManualField = (field, value) => {
+    manualTouchedFieldsRef.current.add(field)
+    setForm((old) => ({ ...old, [field]: value }))
+  }
+
+  const resetFormAndManualFields = () => {
+    manualTouchedFieldsRef.current.clear()
+    setForm(initialForm)
+  }
+
   const runAnalyzeWithFiles = useCallback(async (filesToAnalyze) => {
     if (!filesToAnalyze?.length) return
     if (analyzeInFlightRef.current) return
@@ -176,10 +187,8 @@ export default function UploadPage() {
         const aiNotes = (data.notes ?? '').toString().trim()
         const aiDescription = (data.description ?? '').toString()
         const aiSku = (data.sku ?? '').toString()
-        const aiClient = (data.client_name ?? data.clientName ?? '').toString().trim()
-        const aiSlot = (data.slot ?? '').toString().trim()
-
         const keepManual = (field, aiValue) => {
+          if (manualTouchedFieldsRef.current.has(field)) return (old[field] ?? '').toString()
           const current = (old[field] ?? '').toString()
           const beforeAnalyze = (baseline[field] ?? '').toString()
           if (current !== beforeAnalyze) return current
@@ -189,8 +198,8 @@ export default function UploadPage() {
         return {
           ...old,
           ...data,
-          client_name: keepManual('client_name', aiClient),
-          slot: keepManual('slot', aiSlot),
+          client_name: old.client_name,
+          slot: old.slot,
           description: keepManual('description', aiDescription),
           sku: keepManual('sku', aiSku),
           notes: keepManual('notes', aiNotes.length > 0 ? aiNotes : ''),
@@ -280,7 +289,7 @@ export default function UploadPage() {
 
       const remaining = fileQueue.length - 1
       setFileQueue((q) => q.filter((_, j) => j !== removeIdx))
-      setForm(initialForm)
+      resetFormAndManualFields()
       setMessage(
         (remaining > 0
           ? `Articolo salvato. Restano ${remaining} foto in coda: conferma i dati per la prossima.`
@@ -359,7 +368,7 @@ export default function UploadPage() {
               : ''
 
         setFileQueue([])
-        setForm(initialForm)
+        resetFormAndManualFields()
         setActiveIndex(0)
         setMessage(
           `Articolo salvato con tutte le ${urls.length} foto (galleria e ZIP: anche senza colonna photo_urls su Supabase). Quando potrai, esegui comunque sql/product_photo_urls.sql per usare solo il database.${sheetNoteA}`,
@@ -389,7 +398,7 @@ export default function UploadPage() {
             : ''
 
       setFileQueue([])
-      setForm(initialForm)
+      resetFormAndManualFields()
       setActiveIndex(0)
 
       const savedN = getAllProductPhotoUrls(inserted).length
@@ -485,7 +494,7 @@ export default function UploadPage() {
             <span className="app-label">Titolo breve</span>
             <input
               value={form.description}
-              onChange={(e) => setForm((old) => ({ ...old, description: e.target.value }))}
+              onChange={(e) => markManualField('description', e.target.value)}
               className="app-input"
             />
           </label>
@@ -493,7 +502,7 @@ export default function UploadPage() {
             <span className="app-label">Prezzo</span>
             <input
               value={form.price}
-              onChange={(e) => setForm((old) => ({ ...old, price: e.target.value }))}
+              onChange={(e) => markManualField('price', e.target.value)}
               className="app-input"
             />
           </label>
@@ -503,7 +512,7 @@ export default function UploadPage() {
             <input
               value={form.sku}
               onChange={(e) =>
-                setForm((old) => ({ ...old, sku: e.target.value.replace(/\D/g, '').slice(0, 4) }))
+                markManualField('sku', e.target.value.replace(/\D/g, '').slice(0, 4))
               }
               className="app-input font-mono tabular-nums"
               placeholder="Es. 1234"
@@ -518,7 +527,7 @@ export default function UploadPage() {
               value={clientOptions.includes(selectedClientValue) ? selectedClientValue : ''}
               onChange={(e) => {
                 const v = e.target.value
-                setForm((old) => ({ ...old, client_name: v }))
+                markManualField('client_name', v)
               }}
               className="app-input"
             >
@@ -535,7 +544,7 @@ export default function UploadPage() {
             <span className="app-label">Nome nuovo cliente</span>
             <input
               value={form.client_name}
-              onChange={(e) => setForm((old) => ({ ...old, client_name: e.target.value }))}
+              onChange={(e) => markManualField('client_name', e.target.value)}
               placeholder="Es. Mario Rossi"
               className="app-input"
             />
@@ -545,7 +554,7 @@ export default function UploadPage() {
             <span className="app-label">Slot</span>
             <select
               value={slotOptions.includes(selectedSlotValue) ? selectedSlotValue : ''}
-              onChange={(e) => setForm((old) => ({ ...old, slot: e.target.value }))}
+              onChange={(e) => markManualField('slot', e.target.value)}
               className="app-input"
             >
               <option value="">—</option>
@@ -561,7 +570,7 @@ export default function UploadPage() {
             <span className="app-label">Nuovo slot</span>
             <input
               value={form.slot}
-              onChange={(e) => setForm((old) => ({ ...old, slot: e.target.value }))}
+              onChange={(e) => markManualField('slot', e.target.value)}
               placeholder="Es. 1-A1"
               className="app-input"
             />
@@ -571,7 +580,7 @@ export default function UploadPage() {
             <span className="app-label">Stato</span>
             <select
               value={form.status}
-              onChange={(e) => setForm((old) => ({ ...old, status: e.target.value }))}
+              onChange={(e) => markManualField('status', e.target.value)}
               className="app-input"
             >
               {STATUSES.map((status) => (
@@ -586,7 +595,7 @@ export default function UploadPage() {
             <span className="app-label">Descrizione annuncio</span>
             <textarea
               value={form.notes}
-              onChange={(e) => setForm((old) => ({ ...old, notes: e.target.value }))}
+              onChange={(e) => markManualField('notes', e.target.value)}
               rows={8}
               className="app-input resize-y min-h-[10rem]"
             />
