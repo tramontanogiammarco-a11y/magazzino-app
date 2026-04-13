@@ -1,0 +1,39 @@
+<section class="section section--alt" {% if section.settings.anchor_id != blank %}id="{{ section.settings.anchor_id }}"{% endif %}>
+  <div class="page-width cta-panel">
+    <div class="cta-panel__content">
+      <p class="section-eyebrow">Contatti</p>
+      <h2>{{ section.settings.heading }}</h2>
+      <div class="section-copy rte">{{ section.settings.text }}</div>
+      <div class="cta-panel__actions">
+        {% if section.settings.primary_label != blank %}
+          <a class="button" href="{{ section.settings.primary_link | default: '#' }}">{{ section.settings.primary_label }}</a>
+        {% endif %}
+        {% if section.settings.secondary_label != blank %}
+          <a class="button button--ghost" href="{{ section.settings.secondary_link | default: '#' }}">{{ section.settings.secondary_label }}</a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="contact-card">
+      <p class="contact-card__title">{{ section.settings.contact_title }}</p>
+      <div class="contact-card__lines">{{ section.settings.contact_lines | newline_to_br }}</div>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Final CTA",
+  "settings": [
+    { "type": "text", "id": "anchor_id", "label": "Anchor ID", "default": "contatti" },
+    { "type": "text", "id": "heading", "label": "Titolo", "default": "Hai bisogno di una valutazione sulla tua batteria?" },
+    { "type": "richtext", "id": "text", "label": "Testo", "default": "<p>Raccontaci il modello dell'auto e il problema riscontrato. Possiamo dirti rapidamente se la rigenerazione è la strada giusta.</p>" },
+    { "type": "text", "id": "primary_label", "label": "CTA primaria", "default": "Contattaci ora" },
+    { "type": "url", "id": "primary_link", "label": "Link CTA primaria" },
+    { "type": "text", "id": "secondary_label", "label": "CTA secondaria", "default": "Scrivici su WhatsApp" },
+    { "type": "url", "id": "secondary_link", "label": "Link CTA secondaria" },
+    { "type": "text", "id": "contact_title", "label": "Titolo contatto", "default": "Relife Battery" },
+    { "type": "textarea", "id": "contact_lines", "label": "Righe contatto", "default": "Via Tiberina 44 - 00060\nTel: +39 329 201 1217\nEmail: relifebatterys@gmail.com" }
+  ],
+  "presets": [{ "name": "Final CTA" }]
+}
+{% endschema %}

@@ -1,0 +1,12 @@
+{
+  "sections": {
+    "main": {
+      "type": "contact-page",
+      "settings": {
+        "heading": "Contattaci",
+        "text": "Raccontaci il modello dell'auto, l'errore segnalato e qualsiasi dettaglio utile. Ti ricontattiamo per una prima valutazione."
+      }
+    }
+  },
+  "order": ["main"]
+}

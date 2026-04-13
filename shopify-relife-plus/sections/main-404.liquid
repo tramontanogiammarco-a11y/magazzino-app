@@ -1,0 +1,20 @@
+<section class="section">
+  <div class="page-width state-panel">
+    <p class="section-eyebrow">Pagina non trovata</p>
+    <h1>Questa pagina non esiste.</h1>
+    <p class="section-copy">
+      Torna alla home oppure contattaci direttamente se stavi cercando informazioni sulla rigenerazione della batteria ibrida.
+    </p>
+    <div class="state-panel__actions">
+      <a class="button" href="{{ routes.root_url }}">Torna alla home</a>
+      <a class="button button--ghost" href="tel:{{ settings.phone_number | default: '+39 329 201 1217' }}">Chiama ora</a>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "404",
+  "settings": []
+}
+{% endschema %}

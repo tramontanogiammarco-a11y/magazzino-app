@@ -1,0 +1,67 @@
+<section class="hero-battery section">
+  <div class="page-width hero-battery__grid">
+    <div class="hero-battery__content">
+      {% if section.settings.eyebrow != blank %}
+        <p class="section-eyebrow">{{ section.settings.eyebrow }}</p>
+      {% endif %}
+      <h1 class="hero-battery__title">{{ section.settings.heading }}</h1>
+      <div class="hero-battery__text rte">{{ section.settings.text }}</div>
+
+      <div class="hero-battery__actions">
+        {% if section.settings.primary_label != blank %}
+          <a class="button" href="{{ section.settings.primary_link | default: '#' }}">{{ section.settings.primary_label }}</a>
+        {% endif %}
+        {% if section.settings.secondary_label != blank %}
+          <a class="button button--ghost" href="{{ section.settings.secondary_link | default: '#' }}">{{ section.settings.secondary_label }}</a>
+        {% endif %}
+      </div>
+
+      <ul class="hero-battery__highlights" role="list">
+        {% if section.settings.highlight_one != blank %}<li>{{ section.settings.highlight_one }}</li>{% endif %}
+        {% if section.settings.highlight_two != blank %}<li>{{ section.settings.highlight_two }}</li>{% endif %}
+        {% if section.settings.highlight_three != blank %}<li>{{ section.settings.highlight_three }}</li>{% endif %}
+      </ul>
+    </div>
+
+    <div class="hero-battery__panel">
+      <div class="hero-card">
+        <p class="hero-card__label">Valutazione tecnica</p>
+        <h2>Diagnosi, rigenerazione e test finale.</h2>
+        <p>Una landing pensata per convertire meglio: meno rumore, più chiarezza, più fiducia.</p>
+        <div class="hero-card__stats">
+          <div>
+            <strong>70%</strong>
+            <span>Risparmio possibile</span>
+          </div>
+          <div>
+            <strong>4 step</strong>
+            <span>Processo chiaro</span>
+          </div>
+          <div>
+            <strong>12 mesi</strong>
+            <span>Garanzia indicativa</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Hero battery",
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Rigenerazione batterie ibride" },
+    { "type": "text", "id": "heading", "label": "Titolo", "default": "Rigeneriamo la batteria della tua auto ibrida, senza costi fuori scala." },
+    { "type": "richtext", "id": "text", "label": "Testo", "default": "<p>Un servizio specializzato per riportare il pacco batteria a prestazioni affidabili, con tempi chiari, garanzia e assistenza diretta.</p>" },
+    { "type": "text", "id": "primary_label", "label": "CTA primaria", "default": "Richiedi una valutazione" },
+    { "type": "url", "id": "primary_link", "label": "Link CTA primaria" },
+    { "type": "text", "id": "secondary_label", "label": "CTA secondaria", "default": "Come funziona" },
+    { "type": "url", "id": "secondary_link", "label": "Link CTA secondaria" },
+    { "type": "text", "id": "highlight_one", "label": "Punto 1", "default": "Fino al 70% di risparmio rispetto alla sostituzione" },
+    { "type": "text", "id": "highlight_two", "label": "Punto 2", "default": "Diagnosi tecnica e rigenerazione mirata" },
+    { "type": "text", "id": "highlight_three", "label": "Punto 3", "default": "Garanzia e supporto dedicato" }
+  ],
+  "presets": [{ "name": "Hero battery" }]
+}
+{% endschema %}

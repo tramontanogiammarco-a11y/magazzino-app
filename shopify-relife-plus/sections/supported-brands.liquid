@@ -1,0 +1,30 @@
+<section class="section section--alt">
+  <div class="page-width brands-section">
+    <div class="section-heading">
+      <p class="section-eyebrow">Compatibilità</p>
+      <h2>{{ section.settings.heading }}</h2>
+      <div class="section-copy rte">{{ section.settings.text }}</div>
+    </div>
+    {% assign brand_list = section.settings.brands | newline_to_br | split: '<br />' %}
+    <div class="brand-pills">
+      {% for brand in brand_list %}
+        {% assign trimmed = brand | strip %}
+        {% if trimmed != blank %}
+          <span class="brand-pill">{{ trimmed }}</span>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Supported brands",
+  "settings": [
+    { "type": "text", "id": "heading", "label": "Titolo", "default": "Marchi e modelli trattati" },
+    { "type": "richtext", "id": "text", "label": "Testo", "default": "<p>Toyota, Lexus, Honda, Peugeot, Citroën e altri modelli compatibili. Se hai dubbi, ti diciamo subito se il tuo veicolo rientra nel servizio.</p>" },
+    { "type": "textarea", "id": "brands", "label": "Marchi", "default": "Toyota\nLexus\nHonda\nPeugeot\nCitroën" }
+  ],
+  "presets": [{ "name": "Supported brands" }]
+}
+{% endschema %}

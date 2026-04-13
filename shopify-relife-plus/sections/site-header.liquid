@@ -1,0 +1,32 @@
+<header class="site-header">
+  <div class="page-width site-header__inner">
+    <a class="site-logo" href="{{ routes.root_url }}">
+      <img
+        class="site-logo__image"
+        src="{{ 'relife-brand-12.png' | asset_url }}"
+        alt="Relife Battery"
+        loading="eager"
+        width="128"
+        height="128"
+      >
+    </a>
+
+    <nav class="site-nav" aria-label="Navigazione principale">
+      <a href="{{ routes.root_url }}">Home</a>
+      <a href="/collections/all">Batterie</a>
+      <a href="#processo">Come funziona</a>
+      <a href="#contatti">Contatti</a>
+    </nav>
+
+    <a class="button button--small" href="{{ settings.whatsapp_url | default: 'https://wa.me/393292011217' }}">
+      WhatsApp
+    </a>
+  </div>
+</header>
+
+{% schema %}
+{
+  "name": "Header",
+  "settings": []
+}
+{% endschema %}

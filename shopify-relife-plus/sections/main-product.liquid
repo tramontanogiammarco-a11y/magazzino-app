@@ -1,0 +1,54 @@
+<section class="section product-page">
+  <div class="page-width product-page__grid">
+    <div class="product-page__media">
+      <div class="product-cover product-cover--large">
+        <div class="product-cover__top">
+          <p class="product-cover__vendor">{{ product.vendor | default: 'Relife Battery' }}</p>
+          <span class="product-cover__badge">Standard</span>
+        </div>
+        <h2 class="product-cover__title">{{ product.title | remove: 'Batteria ibrida ' }}</h2>
+        <p class="product-cover__subtitle">Batteria ibrida compatibile con verifica tecnica, supporto diretto e conferma disponibilita prima dell’ordine.</p>
+        <div class="product-cover__logo-wrap">
+          <img
+            class="product-cover__logo"
+            src="{{ 'relife-brand-12.png' | asset_url }}"
+            alt="Relife Battery"
+            loading="eager"
+            width="128"
+            height="128"
+          >
+        </div>
+      </div>
+    </div>
+
+    <div class="product-page__content">
+      {% if product.vendor != blank %}
+        <p class="section-eyebrow">{{ product.vendor }}</p>
+      {% endif %}
+      <h1 class="product-page__title">{{ product.title }}</h1>
+
+      <div class="product-page__price-row">
+        <span class="product-page__price">{{ product.selected_or_first_available_variant.price | money }}</span>
+        <span class="product-page__vat">+ IVA</span>
+      </div>
+
+      <p class="product-page__note">Prezzo riferito alla modalità di vendita standard. Verifica compatibilità e disponibilità prima dell’ordine.</p>
+
+      <div class="product-page__actions">
+        <a class="button" href="tel:{{ settings.phone_number | default: '+39 329 201 1217' }}">Richiedi una valutazione</a>
+        <a class="button button--ghost" href="{{ settings.whatsapp_url | default: 'https://wa.me/393292011217' }}">WhatsApp</a>
+      </div>
+
+      <div class="product-page__description rte">
+        {{ product.description }}
+      </div>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Product",
+  "settings": []
+}
+{% endschema %}

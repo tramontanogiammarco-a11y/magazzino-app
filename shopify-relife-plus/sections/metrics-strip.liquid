@@ -1,0 +1,39 @@
+<section class="section section--alt">
+  <div class="page-width">
+    <div class="section-heading">
+      <p class="section-eyebrow">Metriche</p>
+      <h2>{{ section.settings.heading }}</h2>
+    </div>
+    <div class="metrics-grid">
+      {% for block in section.blocks %}
+        <article class="metric-card" {{ block.shopify_attributes }}>
+          <strong>{{ block.settings.value }}</strong>
+          <h3>{{ block.settings.label }}</h3>
+          <p>{{ block.settings.text }}</p>
+        </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Metrics strip",
+  "settings": [
+    { "type": "text", "id": "heading", "label": "Titolo", "default": "Numeri facili da capire" }
+  ],
+  "blocks": [
+    {
+      "type": "metric",
+      "name": "Metrica",
+      "settings": [
+        { "type": "text", "id": "value", "label": "Valore", "default": "4" },
+        { "type": "text", "id": "label", "label": "Etichetta", "default": "step del processo" },
+        { "type": "text", "id": "text", "label": "Testo", "default": "Analisi, intervento, ricondizionamento e test finale." }
+      ]
+    }
+  ],
+  "max_blocks": 4,
+  "presets": [{ "name": "Metrics strip" }]
+}
+{% endschema %}

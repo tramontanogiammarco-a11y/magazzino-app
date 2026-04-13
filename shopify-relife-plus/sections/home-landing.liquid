@@ -1,0 +1,99 @@
+<section class="section home-landing-section">
+  <div class="page-width">
+    <div class="home-landing">
+      <div class="home-landing__hero">
+        <p class="section-eyebrow">{{ section.settings.eyebrow }}</p>
+        <h1>{{ section.settings.heading }}</h1>
+        <div class="section-copy rte">{{ section.settings.text }}</div>
+        <div class="state-panel__actions">
+          <a class="button" href="tel:{{ settings.phone_number | default: '+39 329 201 1217' }}">Richiedi una valutazione</a>
+          <a class="button button--ghost" href="{{ settings.whatsapp_url | default: 'https://wa.me/393292011217' }}">WhatsApp</a>
+        </div>
+      </div>
+
+      <div class="home-landing__card">
+        <p class="hero-card__label">Relife Battery</p>
+        <h2>{{ section.settings.card_title }}</h2>
+        <p>{{ section.settings.card_text }}</p>
+        <ul class="hero-battery__highlights" role="list">
+          <li>{{ section.settings.highlight_one }}</li>
+          <li>{{ section.settings.highlight_two }}</li>
+          <li>{{ section.settings.highlight_three }}</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--alt" id="processo">
+  <div class="page-width">
+    <div class="section-heading">
+      <p class="section-eyebrow">Come funziona</p>
+      <h2>{{ section.settings.process_heading }}</h2>
+      <div class="section-copy rte">{{ section.settings.process_text }}</div>
+    </div>
+    <div class="steps-grid">
+      <article class="step-card">
+        <div class="step-card__index">Step 1</div>
+        <h3>Analisi iniziale</h3>
+        <p>Diagnosi del pacco batteria e controllo delle celle per capire il problema reale.</p>
+      </article>
+      <article class="step-card">
+        <div class="step-card__index">Step 2</div>
+        <h3>Intervento mirato</h3>
+        <p>Si lavora solo dove serve, senza sostituzioni inutili e con approccio tecnico.</p>
+      </article>
+      <article class="step-card">
+        <div class="step-card__index">Step 3</div>
+        <h3>Ricondizionamento</h3>
+        <p>Cicli controllati di carica e scarica per riequilibrare il sistema.</p>
+      </article>
+      <article class="step-card">
+        <div class="step-card__index">Step 4</div>
+        <h3>Test finale</h3>
+        <p>Verifica conclusiva prima della riconsegna o della spedizione.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="contatti">
+  <div class="page-width cta-panel">
+    <div class="cta-panel__content">
+      <p class="section-eyebrow">Contatti</p>
+      <h2>{{ section.settings.cta_heading }}</h2>
+      <div class="section-copy rte">{{ section.settings.cta_text }}</div>
+      <div class="cta-panel__actions">
+        <a class="button" href="tel:{{ settings.phone_number | default: '+39 329 201 1217' }}">Chiama ora</a>
+        <a class="button button--ghost" href="{{ settings.whatsapp_url | default: 'https://wa.me/393292011217' }}">Scrivici su WhatsApp</a>
+      </div>
+    </div>
+    <div class="contact-card">
+      <p class="contact-card__title">{{ section.settings.contact_title }}</p>
+      <div class="contact-card__lines">{{ section.settings.contact_lines | newline_to_br }}</div>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Home landing",
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Rigenerazione batterie ibride" },
+    { "type": "text", "id": "heading", "label": "Titolo", "default": "Riportiamo la tua batteria all'efficienza ottimale facendoti risparmiare." },
+    { "type": "richtext", "id": "text", "label": "Testo", "default": "<p>Con il nostro servizio di rigenerazione delle batterie per auto ibride, offriamo una soluzione conveniente ed ecologica. Riportiamo il pacco batteria a livelli ottimali di efficienza con un risparmio fino al 70% rispetto alla sostituzione completa.</p>" },
+    { "type": "text", "id": "card_title", "label": "Titolo card", "default": "Diagnosi accurata, manutenzione mirata e test finale." },
+    { "type": "text", "id": "card_text", "label": "Testo card", "default": "Lavoriamo sul pacco batteria con processo tecnico strutturato, tempi chiari e supporto diretto in ogni fase." },
+    { "type": "text", "id": "highlight_one", "label": "Punto 1", "default": "Fino al 70% di risparmio rispetto alla sostituzione" },
+    { "type": "text", "id": "highlight_two", "label": "Punto 2", "default": "Batterie originali e processo specializzato" },
+    { "type": "text", "id": "highlight_three", "label": "Punto 3", "default": "12 mesi di garanzia e supporto dedicato" },
+    { "type": "text", "id": "process_heading", "label": "Titolo processo", "default": "Come funziona il processo" },
+    { "type": "richtext", "id": "process_text", "label": "Testo processo", "default": "<p>Quattro step chiari: analisi, intervento sulle celle critiche, ricondizionamento e test finale prima della riconsegna.</p>" },
+    { "type": "text", "id": "cta_heading", "label": "Titolo CTA", "default": "Hai bisogno di una valutazione sulla tua batteria?" },
+    { "type": "richtext", "id": "cta_text", "label": "Testo CTA", "default": "<p>Contattaci per una valutazione tecnica. Lavoriamo su batterie ibride Toyota, Honda, Lexus, Citroën, Peugeot e altri modelli compatibili.</p>" },
+    { "type": "text", "id": "contact_title", "label": "Titolo contatto", "default": "Relife Battery Srls" },
+    { "type": "textarea", "id": "contact_lines", "label": "Righe contatto", "default": "Via Tiberina, 44 - 00060\nP.iva 16542781006\nTel: +39 329 201 1217\nTel: +39 393 556 9805\nEmail: relifebatterys@gmail.com" }
+  ],
+  "presets": [{ "name": "Home landing" }]
+}
+{% endschema %}

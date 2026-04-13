@@ -1,0 +1,19 @@
+[
+  {
+    "name": "Tema",
+    "settings": [
+      {
+        "type": "text",
+        "id": "phone_number",
+        "label": "Telefono",
+        "default": "+39 329 201 1217"
+      },
+      {
+        "type": "text",
+        "id": "whatsapp_url",
+        "label": "Link WhatsApp",
+        "default": "https://wa.me/393292011217"
+      }
+    ]
+  }
+]

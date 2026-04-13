@@ -1,0 +1,64 @@
+<section class="section">
+  <div class="page-width">
+    <div class="section-heading">
+      <p class="section-eyebrow">Catalogo</p>
+      <h1>{{ collection.title | default: 'Batterie ibride disponibili' }}</h1>
+      {% if collection.description != blank %}
+        <div class="section-copy rte">{{ collection.description }}</div>
+      {% else %}
+        <div class="section-copy rte"><p>Seleziona il modello della tua auto e apri la scheda prodotto dedicata con specifiche tecniche e prezzo.</p></div>
+      {% endif %}
+    </div>
+
+    {% if collection.products_count > 0 %}
+      <div class="catalog-grid">
+        {% for product in collection.products %}
+          <article class="catalog-card">
+            <a class="catalog-card__image-link" href="{{ product.url }}">
+              <div class="product-cover product-cover--card">
+                <div class="product-cover__top">
+                  <p class="product-cover__vendor">{{ product.vendor | default: 'Relife Battery' }}</p>
+                  <span class="product-cover__badge">Standard</span>
+                </div>
+                <h3 class="product-cover__title">{{ product.title | remove: 'Batteria ibrida ' }}</h3>
+                <p class="product-cover__subtitle product-cover__subtitle--card">Batteria ibrida compatibile con verifica tecnica prima dell’ordine</p>
+                <div class="product-cover__logo-wrap">
+                  <img
+                    class="product-cover__logo"
+                    src="{{ 'relife-brand-12.png' | asset_url }}"
+                    alt="Relife Battery"
+                    loading="lazy"
+                    width="128"
+                    height="128"
+                  >
+                </div>
+              </div>
+            </a>
+            <div class="catalog-card__body">
+              <p class="catalog-card__vendor">{{ product.vendor }}</p>
+              <h2><a href="{{ product.url }}">{{ product.title }}</a></h2>
+              <div class="catalog-card__price">
+                {{ product.price | money }}
+                <small>+ IVA</small>
+              </div>
+              <a class="button button--small" href="{{ product.url }}">Apri scheda</a>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="state-panel">
+        <p class="section-eyebrow">Catalogo vuoto</p>
+        <h2>Nessun prodotto importato.</h2>
+        <p class="section-copy">Importa il file CSV dei prodotti nel tuo store Shopify e qui compariranno tutte le schede auto.</p>
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Collection",
+  "settings": []
+}
+{% endschema %}

@@ -1,0 +1,24 @@
+{
+  "sections": {
+    "landing": {
+      "type": "home-landing",
+      "settings": {
+        "eyebrow": "Rigenerazione batterie ibride",
+        "heading": "Rigeneriamo la batteria della tua auto ibrida senza costi fuori scala.",
+        "text": "<p>Una landing chiara e credibile per spiegare il servizio, aumentare la fiducia e spingere il contatto diretto.</p>",
+        "card_title": "Diagnosi, rigenerazione e test finale.",
+        "card_text": "Un servizio specializzato per riportare il pacco batteria a prestazioni affidabili, con tempi chiari e supporto diretto.",
+        "highlight_one": "Fino al 70% di risparmio rispetto alla sostituzione",
+        "highlight_two": "Diagnosi tecnica e rigenerazione mirata",
+        "highlight_three": "Garanzia e supporto dedicato",
+        "process_heading": "Come funziona il processo",
+        "process_text": "<p>Quattro fasi semplici da capire, progettate per darti chiarezza su tempi, intervento e risultato finale.</p>",
+        "cta_heading": "Hai bisogno di una valutazione sulla tua batteria?",
+        "cta_text": "<p>Raccontaci il modello dell'auto e il problema riscontrato. Possiamo dirti rapidamente se la rigenerazione è la strada giusta.</p>",
+        "contact_title": "Relife Battery",
+        "contact_lines": "Via Tiberina 44 - 00060\nTel: +39 329 201 1217\nEmail: relifebatterys@gmail.com"
+      }
+    }
+  },
+  "order": ["landing"]
+}
