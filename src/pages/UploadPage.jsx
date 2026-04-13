@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { extractProductDataFromPhotos } from '../lib/gemini'
 import { notifyGoogleSheetsNewProduct } from '../lib/googleSheets'
 import { encodeNotesWithGallery, getAllProductPhotoUrls, stripGalleryFromNotes } from '../lib/productPhotos'
@@ -64,6 +64,13 @@ export default function UploadPage() {
   const [message, setMessage] = useState('')
   const [clients, setClients] = useState([])
   const [slots, setSlots] = useState([])
+
+  const fileQueueRef = useRef(fileQueue)
+  fileQueueRef.current = fileQueue
+
+  const prevQueueLengthRef = useRef(0)
+  const autoAnalyzeDebounceRef = useRef(0)
+  const analyzeInFlightRef = useRef(false)
 
   const safeActiveIndex = useMemo(() => {
     if (fileQueue.length === 0) return 0
@@ -142,31 +149,56 @@ export default function UploadPage() {
     setFileQueue((q) => q.filter((_, j) => j !== index))
   }
 
-  const onAnalyze = async () => {
-    if (!activeFile) return
+  const runAnalyzeWithFiles = useCallback(async (filesToAnalyze) => {
+    if (!filesToAnalyze?.length) return
+    if (analyzeInFlightRef.current) return
+    analyzeInFlightRef.current = true
     setLoadingVision(true)
     setMessage('')
     try {
-      const filesToAnalyze = fileQueue.map((item) => item.file)
       const data = await extractProductDataFromPhotos(filesToAnalyze)
-      setForm((old) => ({
-        ...old,
-        ...data,
-        client_name: (data.client_name ?? data.clientName ?? old.client_name ?? '').toString().trim(),
-        slot: (data.slot ?? old.slot ?? '').toString().trim(),
-        description: (data.description ?? old.description ?? '').toString(),
-        sku: (data.sku ?? old.sku ?? '').toString(),
-      }))
-      setMessage(
-        filesToAnalyze.length > 1
-          ? `Dati estratti da Telovendo AI usando ${filesToAnalyze.length} foto in coda. Verifica e salva.`
-          : 'Dati estratti da Telovendo AI. Verifica e salva.',
-      )
+      setForm((old) => {
+        const aiNotes = (data.notes ?? '').toString().trim()
+        return {
+          ...old,
+          ...data,
+          client_name: (data.client_name ?? data.clientName ?? old.client_name ?? '').toString().trim(),
+          slot: (data.slot ?? old.slot ?? '').toString().trim(),
+          description: (data.description ?? old.description ?? '').toString(),
+          sku: (data.sku ?? old.sku ?? '').toString(),
+          notes: aiNotes.length > 0 ? aiNotes : old.notes,
+        }
+      })
     } catch (error) {
       setMessage(`Errore Telovendo AI: ${error.message}`)
     } finally {
+      analyzeInFlightRef.current = false
       setLoadingVision(false)
     }
+  }, [])
+
+  /** Dopo nuove foto in coda: analisi automatica (debounce) con tutte le foto attuali. */
+  useEffect(() => {
+    const len = fileQueue.length
+    const grew = len > prevQueueLengthRef.current
+    prevQueueLengthRef.current = len
+    if (!grew || len === 0 || saving) return
+
+    autoAnalyzeDebounceRef.current += 1
+    const token = autoAnalyzeDebounceRef.current
+    const t = setTimeout(() => {
+      if (token !== autoAnalyzeDebounceRef.current) return
+      if (analyzeInFlightRef.current) return
+      const files = fileQueueRef.current.map((item) => item.file).filter(Boolean)
+      if (files.length) void runAnalyzeWithFiles(files)
+    }, 450)
+    return () => clearTimeout(t)
+  }, [fileQueue, saving, runAnalyzeWithFiles])
+
+  const onAnalyze = () => {
+    if (!activeFile) return
+    autoAnalyzeDebounceRef.current += 1
+    void runAnalyzeWithFiles(fileQueue.map((item) => item.file))
   }
 
   const onSave = async () => {
@@ -397,10 +429,10 @@ export default function UploadPage() {
             type="button"
             onClick={onAnalyze}
             disabled={!activeFile || loadingVision}
-            aria-label="Analizza con Telovendo AI"
+            aria-label="Rianalizza con Telovendo AI"
             className="app-btn-primary w-full py-3.5"
           >
-            {loadingVision ? 'Analisi in corso…' : 'Analizza con Telovendo AI'}
+            {loadingVision ? 'Analisi in corso…' : 'Rianalizza con Telovendo AI'}
           </button>
         </div>
       </div>
@@ -409,16 +441,22 @@ export default function UploadPage() {
         <p className="app-kicker mb-1">Passo 2</p>
         <h2 className="app-section-title mb-5">Conferma dati e salva</h2>
         <div className="grid gap-4">
-          {['description', 'price'].map((field) => (
-            <label key={field} className="block">
-              <span className="app-label capitalize">{field.replace('_', ' ')}</span>
-              <input
-                value={form[field]}
-                onChange={(e) => setForm((old) => ({ ...old, [field]: e.target.value }))}
-                className="app-input"
-              />
-            </label>
-          ))}
+          <label className="block">
+            <span className="app-label">Titolo breve</span>
+            <input
+              value={form.description}
+              onChange={(e) => setForm((old) => ({ ...old, description: e.target.value }))}
+              className="app-input"
+            />
+          </label>
+          <label className="block">
+            <span className="app-label">Prezzo</span>
+            <input
+              value={form.price}
+              onChange={(e) => setForm((old) => ({ ...old, price: e.target.value }))}
+              className="app-input"
+            />
+          </label>
 
           <label className="block">
             <span className="app-label">SKU</span>
@@ -454,7 +492,7 @@ export default function UploadPage() {
           </label>
 
           <label className="block">
-            <span className="app-label">Oppure scrivi il nome cliente</span>
+            <span className="app-label">Nome nuovo cliente</span>
             <input
               value={form.client_name}
               onChange={(e) => setForm((old) => ({ ...old, client_name: e.target.value }))}
@@ -480,7 +518,7 @@ export default function UploadPage() {
           </label>
 
           <label className="block">
-            <span className="app-label">Oppure scrivi lo slot</span>
+            <span className="app-label">Nuovo slot</span>
             <input
               value={form.slot}
               onChange={(e) => setForm((old) => ({ ...old, slot: e.target.value }))}
@@ -505,12 +543,12 @@ export default function UploadPage() {
           </label>
 
           <label className="block">
-            <span className="app-label">Note</span>
+            <span className="app-label">Descrizione annuncio</span>
             <textarea
               value={form.notes}
               onChange={(e) => setForm((old) => ({ ...old, notes: e.target.value }))}
-              rows={4}
-              className="app-input resize-y"
+              rows={8}
+              className="app-input resize-y min-h-[10rem]"
             />
           </label>
         </div>

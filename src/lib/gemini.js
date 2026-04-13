@@ -1,3 +1,9 @@
+import {
+  buildFallbackListingNotes,
+  clampToMaxWords,
+  countWords,
+} from './fallbackListingNotes.js'
+
 async function prepareImageForUpload(file) {
   const imageUrl = URL.createObjectURL(file)
 
@@ -43,6 +49,13 @@ function summarizeAnalyzeError(status, bodyText, parsed) {
     if (parsed.message) return parsed.message
   }
   if (bodyText && bodyText.length < 400 && !bodyText.trim().startsWith('<')) return bodyText
+  if (status === 502) {
+    return (
+      'Errore HTTP 502: il server di analisi non ha risposto correttamente. ' +
+      'In locale avvia `npm run dev:full` (non solo `npm run dev`), così l’API su porta 3001 è attiva. ' +
+      'Su Vercel controlla che `ANTHROPIC_API_KEY` sia impostata nel progetto e ridistribuisci dopo l’ultimo aggiornamento di `vercel.json` (rewrite che esclude `/api/`).'
+    )
+  }
   if (status) return `Errore HTTP ${status}`
   return 'Risposta non valida dal server di analisi'
 }
@@ -100,7 +113,15 @@ export async function extractProductDataFromPhotos(files) {
     const hint = summarizeAnalyzeError(response.status, text, parsed)
     throw new Error(parsed?.error ? String(parsed.error) : hint || 'Risposta senza campo data')
   }
-  return parsed.data
+
+  const d = { ...parsed.data }
+  const notesTrim = String(d.notes ?? '').trim()
+  const descTrim = String(d.description ?? '').trim()
+  if (descTrim && (!notesTrim || countWords(notesTrim) < 10)) {
+    d.notes = buildFallbackListingNotes(descTrim)
+  }
+  d.notes = clampToMaxWords(String(d.notes ?? '').trim(), 40)
+  return d
 }
 
 /** Una sola foto (compatibilità). */
