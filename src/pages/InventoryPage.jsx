@@ -30,13 +30,12 @@ function isExpiringProduct(p) {
   return days < 5
 }
 
-/** Manca almeno uno tra SKU, slot, proprietario o prezzo (per annunci / magazzino). */
+/** Manca almeno uno tra SKU, slot o proprietario. Il prezzo non conta qui. */
 function productHasMissingListingDetails(p) {
   const noSku = !displaySku(p.sku)
   const noSlot = !displayOptionalColumn(p.slot)
   const noClient = !displayOptionalColumn(p.client_name)
-  const noPrice = p.price == null || p.price === '' || Number(p.price) <= 0
-  return noSku || noSlot || noClient || noPrice
+  return noSku || noSlot || noClient
 }
 
 export default function InventoryPage() {
@@ -345,7 +344,7 @@ export default function InventoryPage() {
         onClear={() => setQuickFilter(null)}
       />
 
-      <div className="app-card grid gap-4 p-6 text-base md:grid-cols-6">
+      <div className="app-card grid gap-3 p-4 text-base sm:grid-cols-2 sm:gap-4 sm:p-5 md:grid-cols-3 xl:grid-cols-6 xl:p-6">
         <select
           className="app-input py-3 font-medium"
           value={filters.client}
@@ -407,6 +406,258 @@ export default function InventoryPage() {
         </button>
       </div>
 
+      <div className="space-y-4 lg:hidden">
+        {loading ? (
+          <div className="app-card p-5 text-center app-text-muted">Caricamento…</div>
+        ) : rows.length === 0 ? (
+          <div className="app-card p-5 text-center app-text-muted">Nessun articolo trovato</div>
+        ) : (
+          rows.map((p) => {
+            const urls = getAllProductPhotoUrls(p)
+            return (
+              <article key={p.id} className="app-card p-4">
+                <div className="flex items-start gap-3">
+                  <button
+                    type="button"
+                    onClick={() => openGallery(p)}
+                    className="shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ABAB5] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900"
+                    aria-label={`Apri galleria foto, ${urls.length || 0} immagini`}
+                  >
+                    {urls.length ? (
+                      <img
+                        src={getProductPhotoThumbnailSrc(urls[0])}
+                        alt=""
+                        className="h-24 w-24 rounded-2xl object-cover ring-1 ring-zinc-200 dark:ring-zinc-700"
+                      />
+                    ) : (
+                      <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-400 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-700">
+                        —
+                      </div>
+                    )}
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <input
+                      type="text"
+                      value={p.id in descDraftById ? descDraftById[p.id] : (p.description ?? '')}
+                      onChange={(e) => setDescDraftById((d) => ({ ...d, [p.id]: e.target.value }))}
+                      onBlur={async (e) => {
+                        const trimmed = e.target.value.trim() || 'Articolo'
+                        const row = productsRef.current.find((x) => x.id === p.id)
+                        const prev = String(row?.description ?? '').trim() || 'Articolo'
+                        if (trimmed === prev) {
+                          setDescDraftById((d) => {
+                            if (!(p.id in d)) return d
+                            const { [p.id]: _, ...rest } = d
+                            return rest
+                          })
+                          return
+                        }
+                        const saved = await updateProduct(p.id, { description: trimmed })
+                        if (saved) {
+                          setDescDraftById((d) => {
+                            if (!(p.id in d)) return d
+                            const { [p.id]: _, ...rest } = d
+                            return rest
+                          })
+                        }
+                      }}
+                      className="app-input w-full py-3 text-base font-medium"
+                      placeholder="Descrizione"
+                    />
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <ExpiryBadge loadedAt={p.loaded_at} status={p.status} />
+                      <button type="button" onClick={() => openGallery(p)} className="app-link-accent text-sm">
+                        Foto ({urls.length})
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <label>
+                    <span className="mb-1.5 block text-sm font-medium text-zinc-600 dark:text-zinc-400">SKU</span>
+                    <input
+                      value={p.id in skuDraftById ? skuDraftById[p.id] : displaySku(p.sku)}
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/\D/g, '').slice(0, 4)
+                        setSkuDraftById((d) => ({ ...d, [p.id]: v }))
+                      }}
+                      onBlur={async (e) => {
+                        const digits = e.target.value.replace(/\D/g, '').slice(0, 4)
+                        const nextSku = digits || PLACEHOLDER_SKU
+                        const row = productsRef.current.find((x) => x.id === p.id)
+                        const prevDigits = String(row?.sku ?? '').replace(/\D/g, '').slice(0, 4)
+                        const prevSku = prevDigits || PLACEHOLDER_SKU
+                        if (nextSku === prevSku) {
+                          setSkuDraftById((d) => {
+                            if (!(p.id in d)) return d
+                            const { [p.id]: _, ...rest } = d
+                            return rest
+                          })
+                          return
+                        }
+                        const saved = await updateProduct(p.id, { sku: nextSku })
+                        if (saved) {
+                          setSkuDraftById((d) => {
+                            if (!(p.id in d)) return d
+                            const { [p.id]: _, ...rest } = d
+                            return rest
+                          })
+                        }
+                      }}
+                      className="app-input w-full py-2.5 font-mono text-base"
+                      placeholder="1234"
+                    />
+                  </label>
+                  <label>
+                    <span className="mb-1.5 block text-sm font-medium text-zinc-600 dark:text-zinc-400">Prezzo</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      value={
+                        Object.prototype.hasOwnProperty.call(priceDraftById, p.id)
+                          ? priceDraftById[p.id]
+                          : p.price != null && p.price !== ''
+                            ? String(p.price)
+                            : ''
+                      }
+                      onChange={(e) => schedulePriceDraftSave(p.id, e.target.value)}
+                      onBlur={(e) => onPriceBlur(p.id, e.target.value)}
+                      className="app-input w-full py-2.5 tabular-nums text-base"
+                    />
+                  </label>
+                  <label>
+                    <span className="mb-1.5 block text-sm font-medium text-zinc-600 dark:text-zinc-400">Proprietario</span>
+                    <input
+                      value={p.id in clientDraftById ? clientDraftById[p.id] : displayOptionalColumn(p.client_name)}
+                      onChange={(e) => setClientDraftById((d) => ({ ...d, [p.id]: e.target.value }))}
+                      onBlur={async (e) => {
+                        const t = e.target.value.trim()
+                        const next = t || PLACEHOLDER_CLIENT_NAME
+                        const row = productsRef.current.find((x) => x.id === p.id)
+                        const prevRaw = String(row?.client_name ?? '').trim()
+                        const prev = prevRaw || PLACEHOLDER_CLIENT_NAME
+                        if (next === prev) {
+                          setClientDraftById((d) => {
+                            if (!(p.id in d)) return d
+                            const { [p.id]: _, ...rest } = d
+                            return rest
+                          })
+                          return
+                        }
+                        const saved = await updateProduct(p.id, { client_name: next })
+                        if (saved) {
+                          setClientDraftById((d) => {
+                            if (!(p.id in d)) return d
+                            const { [p.id]: _, ...rest } = d
+                            return rest
+                          })
+                        }
+                      }}
+                      className="app-input w-full py-2.5 text-base"
+                    />
+                  </label>
+                  <label>
+                    <span className="mb-1.5 block text-sm font-medium text-zinc-600 dark:text-zinc-400">Slot</span>
+                    <input
+                      value={p.id in slotDraftById ? slotDraftById[p.id] : displayOptionalColumn(p.slot)}
+                      onChange={(e) => setSlotDraftById((d) => ({ ...d, [p.id]: e.target.value }))}
+                      onBlur={async (e) => {
+                        const t = e.target.value.trim()
+                        const next = t || PLACEHOLDER_SLOT
+                        const row = productsRef.current.find((x) => x.id === p.id)
+                        const prevRaw = String(row?.slot ?? '').trim()
+                        const prev = prevRaw || PLACEHOLDER_SLOT
+                        if (next === prev) {
+                          setSlotDraftById((d) => {
+                            if (!(p.id in d)) return d
+                            const { [p.id]: _, ...rest } = d
+                            return rest
+                          })
+                          return
+                        }
+                        const saved = await updateProduct(p.id, { slot: next })
+                        if (saved) {
+                          setSlotDraftById((d) => {
+                            if (!(p.id in d)) return d
+                            const { [p.id]: _, ...rest } = d
+                            return rest
+                          })
+                        }
+                      }}
+                      className="app-input w-full py-2.5 text-base"
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-4">
+                  <span className="mb-1.5 block text-sm font-medium text-zinc-600 dark:text-zinc-400">Stato</span>
+                  <select
+                    value={normalizeStatus(p.status)}
+                    onChange={(e) => updateProduct(p.id, { status: e.target.value })}
+                    className={`app-input block w-full border-2 py-3 text-base font-semibold ${STATUS_SELECT_CLASSES[normalizeStatus(p.status)]}`}
+                  >
+                    {STATUSES.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <label className="mt-4 block">
+                  <span className="mb-1.5 block text-sm font-medium text-zinc-600 dark:text-zinc-400">Note</span>
+                  <textarea
+                    value={p.id in notesDraftById ? notesDraftById[p.id] : notesVisibleToUser(p.notes)}
+                    onChange={(e) => setNotesDraftById((d) => ({ ...d, [p.id]: e.target.value }))}
+                    onBlur={async (e) => {
+                      const row = productsRef.current.find((x) => x.id === p.id)
+                      const merged = mergeUserNotesEdit(row?.notes ?? '', e.target.value)
+                      if (merged === (row?.notes ?? '')) {
+                        setNotesDraftById((d) => {
+                          if (!(p.id in d)) return d
+                          const { [p.id]: _, ...rest } = d
+                          return rest
+                        })
+                        return
+                      }
+                      const saved = await updateProduct(p.id, { notes: merged })
+                      if (saved) {
+                        setNotesDraftById((d) => {
+                          if (!(p.id in d)) return d
+                          const { [p.id]: _, ...rest } = d
+                          return rest
+                        })
+                      }
+                    }}
+                    rows={4}
+                    className="app-input min-h-[7rem] w-full resize-y py-2.5 text-base leading-snug"
+                  />
+                </label>
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200/80 pt-4 dark:border-zinc-700/80">
+                  <div className="text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                    <div>Creato: {formatDate(p.created_at)}</div>
+                    <div>Caricato: {formatDate(p.loaded_at)}</div>
+                    <div>Venduto: {formatDate(p.sold_at)}</div>
+                    <div>Pagato: {formatDate(p.paid_at)}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void deleteProduct(p)}
+                    className="rounded-xl border-2 border-rose-300/80 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 dark:border-rose-700/70 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                  >
+                    Elimina articolo
+                  </button>
+                </div>
+              </article>
+            )
+          })
+        )}
+      </div>
+
+      <div className="hidden lg:block">
       <div className="app-card overflow-x-auto p-4 sm:p-6">
         <table className="w-full min-w-0 table-fixed border-collapse text-base">
           <colgroup>
@@ -720,6 +971,7 @@ export default function InventoryPage() {
             )}
           </tbody>
         </table>
+      </div>
       </div>
 
       {galleryProduct ? (

@@ -25,7 +25,7 @@ export default function InventoryTodoBar({ counts, active, onSelect, onClear }) 
     {
       key: QUICK.missing_details,
       label: 'Dettagli mancanti',
-      sub: 'SKU, slot, proprietario o prezzo',
+      sub: 'SKU, slot o proprietario',
       count: counts.missingDetails,
     },
     { key: QUICK.magazzino, label: 'In magazzino', sub: 'Da pubblicare su Vinted', count: counts.magazzino },

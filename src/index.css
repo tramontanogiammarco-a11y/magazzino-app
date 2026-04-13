@@ -195,4 +195,12 @@
   .dark .app-inline-message {
     background: rgba(255, 255, 255, 0.06);
   }
+
+  .app-mobile-nav-scroll {
+    scrollbar-width: none;
+  }
+
+  .app-mobile-nav-scroll::-webkit-scrollbar {
+    display: none;
+  }
 }
