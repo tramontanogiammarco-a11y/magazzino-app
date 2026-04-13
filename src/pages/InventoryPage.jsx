@@ -5,6 +5,9 @@ import {
   fetchClientProfiles,
   getDistinctProductFields,
   isClientProfileComplete,
+  PLACEHOLDER_CLIENT_NAME,
+  PLACEHOLDER_SKU,
+  PLACEHOLDER_SLOT,
   supabase,
 } from '../lib/supabase'
 import { STATUSES, STATUS_SELECT_CLASSES, normalizeStatus } from '../constants/statuses'
@@ -18,6 +21,7 @@ import {
   mergeUserNotesEdit,
   notesVisibleToUser,
 } from '../lib/productPhotos'
+import { notifyGoogleSheetsNewProduct } from '../lib/googleSheets'
 
 function isExpiringProduct(p) {
   if (!p.loaded_at || p.status !== 'Caricato') return false
@@ -37,6 +41,8 @@ function productHasMissingListingDetails(p) {
 
 export default function InventoryPage() {
   const [products, setProducts] = useState([])
+  const productsRef = useRef(products)
+  productsRef.current = products
   const [filters, setFilters] = useState({ client: '', slot: '', status: '', from: '', to: '', expiringOnly: false })
   const [quickFilter, setQuickFilter] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -54,6 +60,13 @@ export default function InventoryPage() {
   /** Testo prezzo mentre digiti (evita salvataggi a ogni tasto e valori intermedi). */
   const [priceDraftById, setPriceDraftById] = useState({})
   const priceDebounceRef = useRef(new Map())
+
+  /** Bozze inventario: evita `updateProduct` a ogni tasto (race su fetch concorrenti). */
+  const [descDraftById, setDescDraftById] = useState({})
+  const [skuDraftById, setSkuDraftById] = useState({})
+  const [clientDraftById, setClientDraftById] = useState({})
+  const [slotDraftById, setSlotDraftById] = useState({})
+  const [notesDraftById, setNotesDraftById] = useState({})
 
   /** `showLoading`: solo al primo caricamento — dopo gli aggiornamenti non azzerare la tabella. */
   const fetchProducts = async (showLoading = false) => {
@@ -163,6 +176,7 @@ export default function InventoryPage() {
   }
 
   const updateProduct = async (id, patch) => {
+    const prev = productsRef.current.find((x) => x.id === id)
     const payload = { ...patch }
     if (patch.status === 'Caricato') payload.loaded_at = new Date().toISOString()
     if (patch.status === 'Venduto') payload.sold_at = new Date().toISOString()
@@ -173,6 +187,26 @@ export default function InventoryPage() {
       showSaveHint(false, error.message || 'Salvataggio non riuscito')
       return false
     }
+
+    const sheetKeys = ['status', 'price', 'description', 'sku', 'client_name', 'slot']
+    if (prev && sheetKeys.some((k) => Object.prototype.hasOwnProperty.call(patch, k))) {
+      const merged = { ...prev, ...payload }
+      try {
+        await notifyGoogleSheetsNewProduct({
+          productId: id,
+          action: 'update',
+          description: String(merged.description ?? '').trim() || 'Articolo',
+          status: merged.status ?? '',
+          price: merged.price,
+          client_name: merged.client_name ?? '',
+          sku: merged.sku ?? '',
+          slot: merged.slot ?? '',
+        })
+      } catch {
+        // Webhook best-effort
+      }
+    }
+
     showSaveHint(true, 'Salvato')
     await fetchProducts(false)
     void fetchDistinctValues()
@@ -410,10 +444,29 @@ export default function InventoryPage() {
                     <div className="flex min-w-0 flex-col gap-3.5">
                       <input
                         type="text"
-                        value={p.description ?? ''}
-                        onChange={(e) =>
-                          updateProduct(p.id, { description: e.target.value.trim() || 'Articolo' })
-                        }
+                        value={p.id in descDraftById ? descDraftById[p.id] : (p.description ?? '')}
+                        onChange={(e) => setDescDraftById((d) => ({ ...d, [p.id]: e.target.value }))}
+                        onBlur={async (e) => {
+                          const trimmed = e.target.value.trim() || 'Articolo'
+                          const row = productsRef.current.find((x) => x.id === p.id)
+                          const prev = String(row?.description ?? '').trim() || 'Articolo'
+                          if (trimmed === prev) {
+                            setDescDraftById((d) => {
+                              if (!(p.id in d)) return d
+                              const { [p.id]: _, ...rest } = d
+                              return rest
+                            })
+                            return
+                          }
+                          const saved = await updateProduct(p.id, { description: trimmed })
+                          if (saved) {
+                            setDescDraftById((d) => {
+                              if (!(p.id in d)) return d
+                              const { [p.id]: _, ...rest } = d
+                              return rest
+                            })
+                          }
+                        }}
                         className="app-input box-border w-full min-w-0 py-3 text-base font-medium"
                         placeholder="Descrizione"
                       />
@@ -423,10 +476,33 @@ export default function InventoryPage() {
                             SKU
                           </span>
                           <input
-                            value={displaySku(p.sku)}
+                            value={p.id in skuDraftById ? skuDraftById[p.id] : displaySku(p.sku)}
                             onChange={(e) => {
                               const v = e.target.value.replace(/\D/g, '').slice(0, 4)
-                              updateProduct(p.id, { sku: v || null })
+                              setSkuDraftById((d) => ({ ...d, [p.id]: v }))
+                            }}
+                            onBlur={async (e) => {
+                              const digits = e.target.value.replace(/\D/g, '').slice(0, 4)
+                              const nextSku = digits || PLACEHOLDER_SKU
+                              const row = productsRef.current.find((x) => x.id === p.id)
+                              const prevDigits = String(row?.sku ?? '').replace(/\D/g, '').slice(0, 4)
+                              const prevSku = prevDigits || PLACEHOLDER_SKU
+                              if (nextSku === prevSku) {
+                                setSkuDraftById((d) => {
+                                  if (!(p.id in d)) return d
+                                  const { [p.id]: _, ...rest } = d
+                                  return rest
+                                })
+                                return
+                              }
+                              const saved = await updateProduct(p.id, { sku: nextSku })
+                              if (saved) {
+                                setSkuDraftById((d) => {
+                                  if (!(p.id in d)) return d
+                                  const { [p.id]: _, ...rest } = d
+                                  return rest
+                                })
+                              }
                             }}
                             className="app-input box-border w-full min-w-0 py-2.5 font-mono text-base tabular-nums"
                             placeholder="1234"
@@ -440,8 +516,33 @@ export default function InventoryPage() {
                             Proprietario
                           </span>
                           <input
-                            value={displayOptionalColumn(p.client_name)}
-                            onChange={(e) => updateProduct(p.id, { client_name: e.target.value.trim() || null })}
+                            value={
+                              p.id in clientDraftById ? clientDraftById[p.id] : displayOptionalColumn(p.client_name)
+                            }
+                            onChange={(e) => setClientDraftById((d) => ({ ...d, [p.id]: e.target.value }))}
+                            onBlur={async (e) => {
+                              const t = e.target.value.trim()
+                              const next = t || PLACEHOLDER_CLIENT_NAME
+                              const row = productsRef.current.find((x) => x.id === p.id)
+                              const prevRaw = String(row?.client_name ?? '').trim()
+                              const prev = prevRaw || PLACEHOLDER_CLIENT_NAME
+                              if (next === prev) {
+                                setClientDraftById((d) => {
+                                  if (!(p.id in d)) return d
+                                  const { [p.id]: _, ...rest } = d
+                                  return rest
+                                })
+                                return
+                              }
+                              const saved = await updateProduct(p.id, { client_name: next })
+                              if (saved) {
+                                setClientDraftById((d) => {
+                                  if (!(p.id in d)) return d
+                                  const { [p.id]: _, ...rest } = d
+                                  return rest
+                                })
+                              }
+                            }}
                             className="app-input box-border w-full min-w-0 py-2.5 text-base"
                             placeholder="Nome"
                             aria-label="Proprietario"
@@ -452,8 +553,31 @@ export default function InventoryPage() {
                             Slot
                           </span>
                           <input
-                            value={displayOptionalColumn(p.slot)}
-                            onChange={(e) => updateProduct(p.id, { slot: e.target.value.trim() || null })}
+                            value={p.id in slotDraftById ? slotDraftById[p.id] : displayOptionalColumn(p.slot)}
+                            onChange={(e) => setSlotDraftById((d) => ({ ...d, [p.id]: e.target.value }))}
+                            onBlur={async (e) => {
+                              const t = e.target.value.trim()
+                              const next = t || PLACEHOLDER_SLOT
+                              const row = productsRef.current.find((x) => x.id === p.id)
+                              const prevRaw = String(row?.slot ?? '').trim()
+                              const prev = prevRaw || PLACEHOLDER_SLOT
+                              if (next === prev) {
+                                setSlotDraftById((d) => {
+                                  if (!(p.id in d)) return d
+                                  const { [p.id]: _, ...rest } = d
+                                  return rest
+                                })
+                                return
+                              }
+                              const saved = await updateProduct(p.id, { slot: next })
+                              if (saved) {
+                                setSlotDraftById((d) => {
+                                  if (!(p.id in d)) return d
+                                  const { [p.id]: _, ...rest } = d
+                                  return rest
+                                })
+                              }
+                            }}
                             className="app-input box-border w-full min-w-0 py-2.5 text-base"
                             placeholder="es. 1-A1"
                             aria-label="Slot"
@@ -511,10 +635,30 @@ export default function InventoryPage() {
                           Note
                         </span>
                         <textarea
-                          value={notesVisibleToUser(p.notes)}
-                          onChange={(e) =>
-                            updateProduct(p.id, { notes: mergeUserNotesEdit(p.notes ?? '', e.target.value) })
+                          value={
+                            p.id in notesDraftById ? notesDraftById[p.id] : notesVisibleToUser(p.notes)
                           }
+                          onChange={(e) => setNotesDraftById((d) => ({ ...d, [p.id]: e.target.value }))}
+                          onBlur={async (e) => {
+                            const row = productsRef.current.find((x) => x.id === p.id)
+                            const merged = mergeUserNotesEdit(row?.notes ?? '', e.target.value)
+                            if (merged === (row?.notes ?? '')) {
+                              setNotesDraftById((d) => {
+                                if (!(p.id in d)) return d
+                                const { [p.id]: _, ...rest } = d
+                                return rest
+                              })
+                              return
+                            }
+                            const saved = await updateProduct(p.id, { notes: merged })
+                            if (saved) {
+                              setNotesDraftById((d) => {
+                                if (!(p.id in d)) return d
+                                const { [p.id]: _, ...rest } = d
+                                return rest
+                              })
+                            }
+                          }}
                           rows={4}
                           className="app-input box-border min-h-[7rem] w-full min-w-0 resize-y py-2.5 text-base leading-snug"
                         />

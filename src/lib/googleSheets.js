@@ -19,10 +19,24 @@ function formatPriceEuro(price) {
 /**
  * Notifica Google Sheets (Apps Script). no-cors: risposta opaca; errori di rete non sono leggibili.
  * Content-Type text/plain + JSON nel body: compatibile con mode no-cors (application/json spesso non lo è).
+ *
+ * `action` + `productId`: da inventario arriva `update` con id Supabase — lo script deve aggiornare la riga
+ * (es. colonna id o match su SKU) invece di appendere, altrimenti lo stato non cambia sul foglio.
  */
-export function notifyGoogleSheetsNewProduct({ description, status, price, client_name, sku, slot }) {
+export function notifyGoogleSheetsNewProduct({
+  productId = null,
+  action = 'insert',
+  description,
+  status,
+  price,
+  client_name,
+  sku,
+  slot,
+}) {
   const body = JSON.stringify({
     date: todayDdMmYyyy(),
+    action,
+    productId,
     description: description ?? '',
     status: status ?? '',
     price: formatPriceEuro(price),

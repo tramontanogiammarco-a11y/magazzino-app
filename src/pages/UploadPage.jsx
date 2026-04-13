@@ -230,17 +230,19 @@ export default function UploadPage() {
       if (form.status === 'Venduto') payload.sold_at = new Date().toISOString()
       if (form.status === 'Pagato') payload.paid_at = new Date().toISOString()
 
-      const { error } = await supabase.from('products').insert(payload).select('id, photo_url').single()
+      const { data: insertedRow, error } = await supabase.from('products').insert(payload).select('id, photo_url').single()
       if (error) throw error
 
       try {
         await notifyGoogleSheetsNewProduct({
-          description: desc,
-          status: form.status,
-          price: form.price ? Number(form.price) : null,
-          client_name: clientName ?? '',
-          sku: skuVal ?? '',
-          slot: slotValue ?? '',
+          productId: insertedRow?.id ?? null,
+          action: 'insert',
+          description: payload.description ?? desc,
+          status: payload.status ?? form.status,
+          price: payload.price,
+          client_name: payload.client_name ?? '',
+          sku: payload.sku ?? '',
+          slot: payload.slot ?? '',
         })
       } catch {
         // Webhook best-effort; salvataggio già riuscito
@@ -311,12 +313,14 @@ export default function UploadPage() {
 
         try {
           await notifyGoogleSheetsNewProduct({
-            description: desc,
-            status: form.status,
-            price: form.price ? Number(form.price) : null,
-            client_name: clientName ?? '',
-            sku: skuVal ?? '',
-            slot: slotValue ?? '',
+            productId: row.id,
+            action: 'insert',
+            description: payload.description ?? desc,
+            status: payload.status ?? form.status,
+            price: payload.price,
+            client_name: payload.client_name ?? '',
+            sku: payload.sku ?? '',
+            slot: payload.slot ?? '',
           })
         } catch {
           // Webhook best-effort
@@ -337,12 +341,14 @@ export default function UploadPage() {
 
       try {
         await notifyGoogleSheetsNewProduct({
-          description: desc,
-          status: form.status,
-          price: form.price ? Number(form.price) : null,
-          client_name: clientName ?? '',
-          sku: skuVal ?? '',
-          slot: slotValue ?? '',
+          productId: row.id,
+          action: 'insert',
+          description: payload.description ?? desc,
+          status: payload.status ?? form.status,
+          price: payload.price,
+          client_name: payload.client_name ?? '',
+          sku: payload.sku ?? '',
+          slot: payload.slot ?? '',
         })
       } catch {
         // Webhook best-effort
