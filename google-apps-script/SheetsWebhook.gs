@@ -9,6 +9,7 @@
  * - insert: se ID articolo è già sul foglio, aggiorna quella riga (doppio invio); altrimenti append.
  */
 var ID_ARTICLE_DEFAULT_COLUMN = 10 // colonna J
+var PRICE_DEFAULT_COLUMN = 9 // colonna I
 
 function doPost(e) {
   try {
@@ -144,7 +145,7 @@ function buildHeaderMap_(headers) {
   if (!map.data) map.data = 1
   if (!map.descrizione) map.descrizione = 2
   if (!map.stato) map.stato = 3
-  if (!map.prezzo) map.prezzo = 4
+  map.prezzo = PRICE_DEFAULT_COLUMN
   if (!map.cliente) map.cliente = 5
   if (!map.sku) map.sku = 6
   if (!map.slot) map.slot = 7

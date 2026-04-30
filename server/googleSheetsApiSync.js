@@ -15,6 +15,7 @@ import { JWT } from 'google-auth-library'
 
 const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets'
 const ID_ARTICLE_DEFAULT_COLUMN = 10
+const PRICE_DEFAULT_COLUMN = 9
 
 function loadServiceAccountJson() {
   const inline = process.env.GOOGLE_SERVICE_ACCOUNT_JSON
@@ -125,7 +126,7 @@ function buildHeaderMapLikeAppsScript(headersRow) {
   if (!map.data) map.data = 1
   if (!map.descrizione) map.descrizione = 2
   if (!map.stato) map.stato = 3
-  if (!map.prezzo) map.prezzo = 4
+  map.prezzo = PRICE_DEFAULT_COLUMN
   if (!map.cliente) map.cliente = 5
   if (!map.sku) map.sku = 6
   if (!map.slot) map.slot = 7

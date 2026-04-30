@@ -27,15 +27,6 @@ export default async function handler(req, res) {
     return res.status(status).json(apiResult)
   }
 
-  const action = String(mergedBody?.action || '').toLowerCase()
-  if (action === 'update') {
-    return res.status(422).json({
-      ok: false,
-      error:
-        'Aggiornamento Google Sheets disattivato: con il webhook attuale aggiunge righe duplicate. I nuovi prodotti continuano a essere inseriti, ma per aggiornare la stessa riga serve configurare la modalità Google Sheets API.',
-    })
-  }
-
   const base = process.env.SHEETS_WEBHOOK_URL || SHEETS_WEBHOOK_URL
   const target = buildGoogleSheetsTargetUrl(base, req)
   const payload = JSON.stringify(mergedBody)
