@@ -22,6 +22,7 @@ import {
   notesVisibleToUser,
 } from '../lib/productPhotos'
 import { notifyGoogleSheetsNewProduct } from '../lib/googleSheets'
+import { formatSupabaseReadError } from '../lib/supabaseErrors'
 
 function isExpiringProduct(p) {
   if (!p.loaded_at || p.status !== 'Caricato') return false
@@ -45,6 +46,7 @@ export default function InventoryPage() {
   const [filters, setFilters] = useState({ client: '', slot: '', status: '', from: '', to: '', expiringOnly: false })
   const [quickFilter, setQuickFilter] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [clients, setClients] = useState([])
   const [slots, setSlots] = useState([])
   const [clientProfiles, setClientProfiles] = useState([])
@@ -70,8 +72,13 @@ export default function InventoryPage() {
   /** `showLoading`: solo al primo caricamento — dopo gli aggiornamenti non azzerare la tabella. */
   const fetchProducts = async (showLoading = false) => {
     if (showLoading) setLoading(true)
+    setLoadError('')
     const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false })
-    if (!error) setProducts(data || [])
+    if (error) {
+      setLoadError(formatSupabaseReadError(error, 'l’inventario'))
+    } else {
+      setProducts(data || [])
+    }
     if (showLoading) setLoading(false)
   }
 
@@ -131,7 +138,11 @@ export default function InventoryPage() {
   const parsePriceInput = (raw) => {
     const trimmed = String(raw ?? '').trim()
     if (trimmed === '') return { ok: true, value: null }
-    const n = Number(trimmed.replace(',', '.'))
+    const normalized = trimmed
+      .replace(/\s+/g, '')
+      .replace(/[€]/g, '')
+      .replace(',', '.')
+    const n = Number(normalized)
     if (!Number.isFinite(n) || n < 0) return { ok: false, value: null }
     return { ok: true, value: n }
   }
@@ -324,6 +335,11 @@ export default function InventoryPage() {
 
   return (
     <section className="space-y-6">
+      {loadError ? (
+        <div className="rounded-2xl border-2 border-amber-300/80 bg-amber-50 px-4 py-3 text-base font-medium text-amber-950 dark:border-amber-700/60 dark:bg-amber-950/35 dark:text-amber-100">
+          {loadError}
+        </div>
+      ) : null}
       {saveHint ? (
         <div
           role="status"
@@ -524,6 +540,9 @@ export default function InventoryPage() {
                       }
                       onChange={(e) => schedulePriceDraftSave(p.id, e.target.value)}
                       onBlur={(e) => onPriceBlur(p.id, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.currentTarget.blur()
+                      }}
                       className="app-input w-full py-2.5 tabular-nums text-base"
                     />
                   </label>
@@ -913,6 +932,9 @@ export default function InventoryPage() {
                           }
                           onChange={(e) => schedulePriceDraftSave(p.id, e.target.value)}
                           onBlur={(e) => onPriceBlur(p.id, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') e.currentTarget.blur()
+                          }}
                           className="app-input box-border w-full min-w-0 py-2.5 tabular-nums text-base"
                         />
                       </label>
