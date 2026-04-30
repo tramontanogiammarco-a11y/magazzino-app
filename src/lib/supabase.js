@@ -4,6 +4,13 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_KEY
 
 export const supabase = createClient(supabaseUrl, supabaseKey)
+export const SUPABASE_HOST_LABEL = (() => {
+  try {
+    return new URL(supabaseUrl).host || 'host non disponibile'
+  } catch {
+    return 'host non disponibile'
+  }
+})()
 
 /** Valori auto-insert se il form lascia vuoto (DB con NOT NULL / check stretti). */
 export const DB_OPTIONAL_EMPTY = '\uE000'

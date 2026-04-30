@@ -1,3 +1,22 @@
+import { SUPABASE_HOST_LABEL } from './supabase'
+
+function isSupabaseConnectivityError(err) {
+  const raw = [err?.name, err?.message, err?.details, err?.hint].filter(Boolean).join(' ')
+  return /Failed to fetch|Load failed|NetworkError|fetch|network request failed|TypeError/i.test(raw)
+}
+
+export function formatSupabaseReadError(err, label = 'dati') {
+  const raw = [err?.message, err?.details, err?.hint].filter(Boolean).join(' ') || String(err?.message ?? err)
+  if (isSupabaseConnectivityError(err)) {
+    return [
+      `Il gestionale non riesce a collegarsi a Supabase per leggere ${label}.`,
+      `Host configurato: ${SUPABASE_HOST_LABEL}.`,
+      'Controlla che il progetto Supabase esista ancora e che su Vercel / nel file .env siano impostati URL e key corretti.',
+    ].join(' ')
+  }
+  return raw
+}
+
 /** PostgREST: colonna `photo_urls` assente o non ancora in cache. */
 export function isPhotoUrlsSchemaError(err) {
   const raw = err?.message ?? String(err)
@@ -15,6 +34,13 @@ export function isOptionalProductFieldNotNullError(err) {
 /** Messaggio leggibile per insert su `products` (es. colonna mancante). */
 export function formatProductsInsertError(err) {
   const raw = [err?.message, err?.details, err?.hint].filter(Boolean).join(' ') || String(err?.message ?? err)
+  if (isSupabaseConnectivityError(err)) {
+    return [
+      'Il gestionale non riesce a collegarsi a Supabase, quindi non puo leggere o salvare prodotti.',
+      `Host configurato: ${SUPABASE_HOST_LABEL}.`,
+      'Verifica in Vercel e nel file .env che VITE_SUPABASE_URL e VITE_SUPABASE_KEY siano quelle del progetto corretto.',
+    ].join('\n')
+  }
   if (isOptionalProductFieldNotNullError(err)) {
     return [
       'Il database richiede ancora SKU, cliente o slot obbligatori.',
