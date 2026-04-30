@@ -42,6 +42,18 @@ function prepareProductInsertPayload(payload) {
   return p
 }
 
+function parsePriceInput(raw) {
+  const trimmed = String(raw ?? '').trim()
+  if (trimmed === '') return { ok: true, value: null }
+  const normalized = trimmed
+    .replace(/\s+/g, '')
+    .replace(/[€]/g, '')
+    .replace(',', '.')
+  const n = Number(normalized)
+  if (!Number.isFinite(n) || n < 0) return { ok: false, value: null }
+  return { ok: true, value: n }
+}
+
 /** Escludi solo tipi chiaramente non immagine; il resto passa (MIME spesso vuoto su iPhone). */
 function acceptPickerFile(file) {
   if (!file) return false
@@ -249,6 +261,8 @@ export default function UploadPage() {
       const slotValue = form.slot?.trim() || null
       const skuVal = form.sku?.replace(/\D/g, '').slice(0, 4) || null
       const desc = form.description?.trim() || 'Articolo'
+      const parsedPrice = parsePriceInput(form.price)
+      if (!parsedPrice.ok) throw new Error('Prezzo non valido: usa solo numeri, virgola o simbolo €.')
 
       const photoUrl = await uploadProductPhoto(activeFile)
       /** Non inviare `photo_urls` nell’insert: se la colonna non c’è, PostgREST fallisce anche con 1 foto. */
@@ -259,7 +273,7 @@ export default function UploadPage() {
         client_name: clientName,
         slot: slotValue,
         status: form.status,
-        price: form.price ? Number(form.price) : null,
+        price: parsedPrice.value,
         notes: form.notes || null,
       })
 
@@ -314,6 +328,8 @@ export default function UploadPage() {
       const slotValue = form.slot?.trim() || null
       const skuVal = form.sku?.replace(/\D/g, '').slice(0, 4) || null
       const desc = form.description?.trim() || 'Articolo'
+      const parsedPrice = parsePriceInput(form.price)
+      if (!parsedPrice.ok) throw new Error('Prezzo non valido: usa solo numeri, virgola o simbolo €.')
 
       const files = fileQueue.map((item) => item.file)
       const urls = await uploadProductPhotos(files)
@@ -324,7 +340,7 @@ export default function UploadPage() {
         client_name: clientName,
         slot: slotValue,
         status: form.status,
-        price: form.price ? Number(form.price) : null,
+        price: parsedPrice.value,
         notes: form.notes || null,
       })
 
