@@ -2,6 +2,8 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { BRAND_TIFFANY_RGB } from '../constants/brand'
 import { formatDate } from '../utils/date'
+import { getAllProductPhotoUrls, getProductPhotoThumbnailSrc } from './productPhotos'
+import { displaySku } from './supabase'
 
 /** Un solo Tiffany per barre / brand; testi neutri (zinc) */
 const ACCENT = BRAND_TIFFANY_RGB
@@ -98,6 +100,75 @@ function safeFilename(name) {
     .replace(/[/\\?%*:|"<>]/g, '-')
     .trim()
     .slice(0, 72) || 'cliente'
+}
+
+function itemTitle(item) {
+  return String(item.title || item.name || item.description || 'Prodotto senza titolo').trim()
+}
+
+function itemShortDescription(item) {
+  const title = itemTitle(item)
+  const description = String(item.description || '').trim()
+  if (!description || description === title) return ''
+  return description
+}
+
+async function prepareProductImageForPdf(url) {
+  const src = getProductPhotoThumbnailSrc(url)
+  const res = await fetch(src, {
+    mode: 'cors',
+    credentials: 'omit',
+    cache: 'no-store',
+  })
+  if (!res.ok) throw new Error('photo fetch')
+  const blob = await res.blob()
+
+  let iw
+  let ih
+  let source
+
+  if (typeof createImageBitmap === 'function') {
+    const bitmap = await createImageBitmap(blob)
+    iw = bitmap.width
+    ih = bitmap.height
+    source = bitmap
+  } else {
+    const dataUrl = await blobToDataUrl(blob)
+    const img = await loadImageElement(dataUrl)
+    iw = img.naturalWidth || img.width
+    ih = img.naturalHeight || img.height
+    source = img
+  }
+
+  const side = 520
+  const canvas = document.createElement('canvas')
+  canvas.width = side
+  canvas.height = side
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('canvas')
+
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, side, side)
+  const scale = Math.min(side / iw, side / ih)
+  const drawW = iw * scale
+  const drawH = ih * scale
+  ctx.drawImage(source, (side - drawW) / 2, (side - drawH) / 2, drawW, drawH)
+  if (typeof source.close === 'function') source.close()
+
+  return canvas.toDataURL('image/jpeg', 0.86)
+}
+
+function addPageFooter(doc, pageW, pageH, m) {
+  const totalPages = doc.getNumberOfPages()
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i)
+    doc.setFontSize(8.5)
+    doc.setTextColor(...INK_SOFT)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Telovendo · Magazzino', pageW / 2, pageH - 8, { align: 'center' })
+    doc.setTextColor(161, 161, 170)
+    doc.text(`${i} / ${totalPages}`, pageW - m, pageH - 8, { align: 'right' })
+  }
 }
 
 function drawSectionLabel(doc, label, x, y) {
@@ -295,16 +366,168 @@ export async function exportClientPdf({ clientName, items, toPay }) {
     doc.text(`Altri stati: ${nOther} articoli`, m + 5, y + statCardH - 6)
   }
 
-  const totalPages = doc.getNumberOfPages()
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i)
-    doc.setFontSize(8.5)
-    doc.setTextColor(...INK_SOFT)
-    doc.setFont('helvetica', 'normal')
-    doc.text('Telovendo · Magazzino', pageW / 2, pageH - 8, { align: 'center' })
-    doc.setTextColor(161, 161, 170)
-    doc.text(`${i} / ${totalPages}`, pageW - m, pageH - 8, { align: 'right' })
-  }
+  addPageFooter(doc, pageW, pageH, m)
 
   doc.save(`riepilogo-${safeFilename(clientName)}.pdf`)
+}
+
+export async function exportClientStockPdf({ clientName, items }) {
+  const visibleItems = [...items].sort((a, b) => itemTitle(a).localeCompare(itemTitle(b), 'it-IT'))
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const pageW = doc.internal.pageSize.getWidth()
+  const pageH = doc.internal.pageSize.getHeight()
+  const m = 14
+  const contentW = pageW - 2 * m
+
+  doc.setFillColor(...PAGE_BG)
+  doc.rect(0, 0, pageW, pageH, 'F')
+
+  const headerCardH = 34
+  const headerY = m
+  doc.setFillColor(...CARD_BG)
+  doc.setDrawColor(...CARD_BORDER)
+  doc.setLineWidth(0.25)
+  doc.roundedRect(m, headerY, contentW, headerCardH, 3.5, 3.5, 'FD')
+  doc.setFillColor(...ACCENT)
+  doc.roundedRect(m, headerY, 3.2, headerCardH, 2, 2, 'F')
+
+  try {
+    const { dataUrl, wMm: lw, hMm: lh } = await prepareLogoForPdf()
+    doc.addImage(dataUrl, 'PNG', m + 7, headerY + headerCardH / 2 - lh / 2, lw, lh)
+  } catch {
+    doc.setTextColor(...ACCENT)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(13)
+    doc.text('Telovendo', m + 7, headerY + 16)
+  }
+
+  const textRight = pageW - m - 5
+  doc.setTextColor(...ACCENT)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  doc.text('REPORT CLIENTE', textRight, headerY + 10, { align: 'right' })
+  doc.setTextColor(...INK)
+  doc.setFontSize(15)
+  doc.text('Prodotti a magazzino', textRight, headerY + 18, { align: 'right' })
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...INK_SOFT)
+  doc.setFontSize(9.5)
+  doc.text(new Date().toLocaleDateString('it-IT'), textRight, headerY + 27, { align: 'right' })
+
+  let y = headerY + headerCardH + 11
+  doc.setTextColor(...ACCENT)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  doc.text('CLIENTE', m, y)
+  y += 10
+  doc.setTextColor(...INK)
+  doc.setFontSize(21)
+  doc.setFont('helvetica', 'bold')
+  const nameLines = doc.splitTextToSize(clientName, contentW - 38)
+  doc.text(nameLines, m, y)
+
+  doc.setFillColor(...ROW_ALT)
+  doc.setDrawColor(...CHIP_BORDER)
+  doc.roundedRect(pageW - m - 34, y - 9, 34, 17, 3, 3, 'FD')
+  doc.setFontSize(13)
+  doc.setTextColor(...INK)
+  doc.text(String(visibleItems.length), pageW - m - 17, y - 1, { align: 'center' })
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
+  doc.setTextColor(...INK_SOFT)
+  doc.text('articoli', pageW - m - 17, y + 5, { align: 'center' })
+
+  y += nameLines.length * 9 + 8
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9.5)
+  doc.setTextColor(...INK_MUTED)
+  const intro = 'Elenco dei prodotti ancora disponibili/in gestione per questo cliente.'
+  doc.text(doc.splitTextToSize(intro, contentW), m, y)
+  y += 12
+
+  if (visibleItems.length === 0) {
+    doc.setFillColor(...CARD_BG)
+    doc.setDrawColor(...CARD_BORDER)
+    doc.roundedRect(m, y, contentW, 26, 3, 3, 'FD')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.setTextColor(...INK)
+    doc.text('Nessun prodotto a magazzino per questo cliente.', m + 7, y + 15)
+    addPageFooter(doc, pageW, pageH, m)
+    doc.save(`prodotti-magazzino-${safeFilename(clientName)}.pdf`)
+    return
+  }
+
+  const cardGap = 6
+  const cardH = 41
+  const imageSize = 31
+  const preparedImages = new Map()
+
+  for (const item of visibleItems) {
+    if (y + cardH > pageH - 18) {
+      doc.addPage()
+      doc.setFillColor(...PAGE_BG)
+      doc.rect(0, 0, pageW, pageH, 'F')
+      y = m
+    }
+
+    doc.setFillColor(...CARD_BG)
+    doc.setDrawColor(...CARD_BORDER)
+    doc.setLineWidth(0.2)
+    doc.roundedRect(m, y, contentW, cardH, 3, 3, 'FD')
+
+    const imgX = m + 5
+    const imgY = y + 5
+    doc.setFillColor(244, 244, 245)
+    doc.roundedRect(imgX, imgY, imageSize, imageSize, 2.5, 2.5, 'F')
+
+    const firstPhoto = getAllProductPhotoUrls(item)[0]
+    if (firstPhoto) {
+      try {
+        if (!preparedImages.has(firstPhoto)) {
+          preparedImages.set(firstPhoto, await prepareProductImageForPdf(firstPhoto))
+        }
+        doc.addImage(preparedImages.get(firstPhoto), 'JPEG', imgX, imgY, imageSize, imageSize)
+      } catch {
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(8)
+        doc.setTextColor(...INK_SOFT)
+        doc.text('Foto', imgX + imageSize / 2, imgY + 16, { align: 'center' })
+        doc.text('non disp.', imgX + imageSize / 2, imgY + 21, { align: 'center' })
+      }
+    }
+
+    const textX = imgX + imageSize + 7
+    const textW = contentW - imageSize - 18
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(11.5)
+    doc.setTextColor(...INK)
+    const titleLines = doc.splitTextToSize(itemTitle(item), textW).slice(0, 2)
+    doc.text(titleLines, textX, y + 10)
+
+    const metaY = y + 21
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.7)
+    doc.setTextColor(...INK_MUTED)
+    const meta = [
+      displaySku(item.sku) ? `SKU ${displaySku(item.sku)}` : '',
+      item.status ? `Stato ${item.status}` : '',
+      item.price ? `EUR ${Number(item.price || 0).toFixed(2)}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ')
+    doc.text(doc.splitTextToSize(meta || '—', textW), textX, metaY)
+
+    const desc = itemShortDescription(item)
+    if (desc) {
+      doc.setFontSize(8.2)
+      doc.setTextColor(...INK_SOFT)
+      doc.text(doc.splitTextToSize(desc, textW).slice(0, 2), textX, y + 29)
+    }
+
+    y += cardH + cardGap
+  }
+
+  addPageFooter(doc, pageW, pageH, m)
+  doc.save(`prodotti-magazzino-${safeFilename(clientName)}.pdf`)
 }

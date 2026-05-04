@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { exportClientPdf } from '../lib/exportClientPdf'
+import { exportClientPdf, exportClientStockPdf } from '../lib/exportClientPdf'
 import { clientShareFromSalePrice } from '../lib/vintedCommission'
 import { displayOptionalColumn, displaySku, fetchClientProfiles, supabase, upsertClientProfile } from '../lib/supabase'
 import { isDeletedStatus } from '../constants/statuses'
 import { daysToExpiry, formatDate } from '../utils/date'
+
+const STOCK_REPORT_STATUSES = new Set(['Magazzino', 'Caricato', 'Reso', 'Abbassa di Prezzo'])
 
 function emptyProfileForm(clientName) {
   return {
@@ -91,8 +93,9 @@ export default function ClientsPage() {
       const expiringItems = items.filter((i) => i.status === 'Caricato' && i.loaded_at)
       const minDays =
         expiringItems.length === 0 ? null : Math.min(...expiringItems.map((i) => daysToExpiry(i.loaded_at) ?? 9999))
+      const stockReportItems = items.filter((i) => STOCK_REPORT_STATUSES.has(i.status))
 
-      return { clientName, items, toPay, minDays }
+      return { clientName, items, toPay, minDays, stockReportItems }
     })
   }, [products])
 
@@ -168,23 +171,41 @@ export default function ClientsPage() {
                   {client.minDays === null ? '—' : <span className="font-medium">{client.minDays} giorni</span>}
                 </p>
               </div>
-              <button
-                type="button"
-                disabled={pdfLoading === client.clientName}
-                onClick={() => {
-                  setPdfLoading(client.clientName)
-                  void exportClientPdf({
-                    clientName: client.clientName,
-                    items: client.items,
-                    toPay: client.toPay,
-                  })
-                    .catch((err) => console.error(err))
-                    .finally(() => setPdfLoading(null))
-                }}
-                className="app-btn-primary shrink-0 px-5 py-2.5 text-sm disabled:opacity-60"
-              >
-                {pdfLoading === client.clientName ? 'PDF…' : 'Export PDF'}
-              </button>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={pdfLoading === `${client.clientName}:stock`}
+                  onClick={() => {
+                    setPdfLoading(`${client.clientName}:stock`)
+                    void exportClientStockPdf({
+                      clientName: client.clientName,
+                      items: client.stockReportItems,
+                    })
+                      .catch((err) => console.error(err))
+                      .finally(() => setPdfLoading(null))
+                  }}
+                  className="app-btn-primary px-5 py-2.5 text-sm disabled:opacity-60"
+                >
+                  {pdfLoading === `${client.clientName}:stock` ? 'PDF…' : 'Report prodotti a magazzino'}
+                </button>
+                <button
+                  type="button"
+                  disabled={pdfLoading === `${client.clientName}:summary`}
+                  onClick={() => {
+                    setPdfLoading(`${client.clientName}:summary`)
+                    void exportClientPdf({
+                      clientName: client.clientName,
+                      items: client.items,
+                      toPay: client.toPay,
+                    })
+                      .catch((err) => console.error(err))
+                      .finally(() => setPdfLoading(null))
+                  }}
+                  className="app-btn-secondary px-5 py-2.5 text-sm disabled:opacity-60"
+                >
+                  {pdfLoading === `${client.clientName}:summary` ? 'PDF…' : 'Export PDF'}
+                </button>
+              </div>
             </div>
 
             <div className="border-b border-zinc-200/80 dark:border-zinc-700/80">
