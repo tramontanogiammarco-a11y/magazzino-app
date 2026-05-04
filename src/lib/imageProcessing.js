@@ -59,19 +59,58 @@ function baseNameForFile(file) {
   return String(file?.name || 'foto').replace(/\.[^.]+$/, '')
 }
 
-export async function convertHeicToJpegFile(file, quality = 0.86) {
-  if (!isHeicFile(file)) return file
-  const output = await heic2any({
-    blob: file,
-    toType: 'image/jpeg',
-    quality,
+async function convertImageViaApi(file, quality = 0.82) {
+  const params = new URLSearchParams({
+    maxEdge: String(PHOTO_UPLOAD_MAX_EDGE),
+    quality: String(Math.round(quality * 100)),
   })
-  const blob = Array.isArray(output) ? output[0] : output
+
+  const response = await fetch(`/api/convert-image?${params.toString()}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': file.type || 'application/octet-stream',
+    },
+    body: file,
+  })
+
+  if (!response.ok) {
+    let message = 'Conversione HEIC non riuscita'
+    try {
+      const parsed = await response.clone().json()
+      if (parsed?.error) message = parsed.error
+    } catch {
+      const text = await response.text().catch(() => '')
+      if (text) message = text.slice(0, 240)
+    }
+    throw new Error(message)
+  }
+
+  const blob = await response.blob()
   if (!blob || !blob.size) throw new Error('Conversione HEIC non riuscita')
   return new File([blob], `${baseNameForFile(file)}.jpg`, {
     type: 'image/jpeg',
     lastModified: file.lastModified || Date.now(),
   })
+}
+
+export async function convertHeicToJpegFile(file, quality = 0.86) {
+  if (!isHeicFile(file)) return file
+  try {
+    const output = await heic2any({
+      blob: file,
+      toType: 'image/jpeg',
+      quality,
+    })
+    const blob = Array.isArray(output) ? output[0] : output
+    if (!blob || !blob.size) throw new Error('Conversione HEIC non riuscita')
+    return new File([blob], `${baseNameForFile(file)}.jpg`, {
+      type: 'image/jpeg',
+      lastModified: file.lastModified || Date.now(),
+    })
+  } catch (browserError) {
+    console.warn('[magazzino] conversione HEIC browser fallita, provo API', browserError)
+    return convertImageViaApi(file, quality)
+  }
 }
 
 export async function ensureBrowserReadableImage(file) {

@@ -16,6 +16,9 @@
     },
     "api/image-proxy.js": {
       "maxDuration": 30
+    },
+    "api/convert-image.js": {
+      "maxDuration": 60
     }
   }
 }
