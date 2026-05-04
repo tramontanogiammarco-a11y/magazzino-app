@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { fileExtFromMime, fileExtFromName, mimeFromExt, preparePhotoForUpload } from './imageProcessing'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_KEY
@@ -148,13 +149,19 @@ export async function upsertClientProfile(row) {
 }
 
 export async function uploadProductPhoto(file) {
-  const ext = file.name.split('.').pop() || 'jpg'
+  const uploadFile = await preparePhotoForUpload(file)
+  const ext = fileExtFromMime(uploadFile.type) || fileExtFromName(uploadFile.name) || 'jpg'
   const fileName = `${crypto.randomUUID()}.${ext}`
   const path = `products/${fileName}`
+  const contentType = uploadFile.type || mimeFromExt(ext)
 
   const { error: uploadError } = await supabase.storage
     .from('products')
-    .upload(path, file, { upsert: false })
+    .upload(path, uploadFile, {
+      upsert: false,
+      contentType,
+      cacheControl: '31536000',
+    })
 
   if (uploadError) throw uploadError
 

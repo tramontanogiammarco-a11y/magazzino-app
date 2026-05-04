@@ -19,6 +19,7 @@
     "dotenv": "^17.4.1",
     "express": "^5.2.1",
     "google-auth-library": "^10.6.2",
+    "heic2any": "^0.0.4",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "jszip": "^3.10.1",

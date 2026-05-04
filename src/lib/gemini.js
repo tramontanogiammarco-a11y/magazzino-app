@@ -3,9 +3,11 @@ import {
   clampToMaxWords,
   countWords,
 } from './fallbackListingNotes.js'
+import { ensureBrowserReadableImage } from './imageProcessing.js'
 
 async function prepareImageForUpload(file) {
-  const imageUrl = URL.createObjectURL(file)
+  const readableFile = await ensureBrowserReadableImage(file)
+  const imageUrl = URL.createObjectURL(readableFile)
 
   try {
     const img = await new Promise((resolve, reject) => {

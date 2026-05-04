@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { extractProductDataFromPhotos } from '../lib/gemini'
 import { notifyGoogleSheetsNewProduct } from '../lib/googleSheets'
+import { ensureBrowserReadableImage, formatFileSize, isHeicFile } from '../lib/imageProcessing'
 import { encodeNotesWithGallery, getAllProductPhotoUrls, stripGalleryFromNotes } from '../lib/productPhotos'
 import { formatProductsInsertError, isPhotoUrlsSchemaError } from '../lib/supabaseErrors'
 import {
@@ -83,6 +84,7 @@ export default function UploadPage() {
   const [fileQueue, setFileQueue] = useState([])
   const [activeIndex, setActiveIndex] = useState(0)
   const [preview, setPreview] = useState('')
+  const [previewError, setPreviewError] = useState(false)
   const [form, setForm] = useState(initialForm)
   const [loadingVision, setLoadingVision] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -113,13 +115,36 @@ export default function UploadPage() {
 
   /** Anteprima URL per la foto attiva */
   useEffect(() => {
+    let alive = true
+    let url = ''
+
     if (!activeFile) {
       setPreview('')
-      return
+      setPreviewError(false)
+      return undefined
     }
-    const url = URL.createObjectURL(activeFile)
-    setPreview(url)
-    return () => URL.revokeObjectURL(url)
+
+    setPreview('')
+    setPreviewError(false)
+
+    ;(async () => {
+      try {
+        const readableFile = await ensureBrowserReadableImage(activeFile)
+        if (!alive) return
+        url = URL.createObjectURL(readableFile)
+        setPreview(url)
+      } catch (error) {
+        console.warn('[magazzino] anteprima immagine non disponibile', error)
+        if (!alive) return
+        setPreview('')
+        setPreviewError(true)
+      }
+    })()
+
+    return () => {
+      alive = false
+      if (url) URL.revokeObjectURL(url)
+    }
   }, [activeFile])
 
   /** Include sempre il valore attuale nel menu, anche se non è ancora in DB (es. da vision). */
@@ -240,7 +265,7 @@ export default function UploadPage() {
       analyzeInFlightRef.current = false
       setLoadingVision(false)
     }
-  }, [form.client_name, form.description, form.notes, form.sku, form.slot])
+  }, [form.client_name, form.description, form.notes, form.price, form.sku, form.slot])
 
   /** Dopo nuove foto in coda: analisi automatica (debounce) con tutte le foto attuali. */
   useEffect(() => {
@@ -502,13 +527,29 @@ export default function UploadPage() {
           </div>
         )}
         <div className="mt-6 flex flex-col gap-4">
-          {preview && (
+          {preview && !previewError && (
             <div className="flex aspect-[4/3] max-h-[min(18rem,42vh)] w-full items-center justify-center overflow-hidden rounded-2xl border border-zinc-200/90 bg-zinc-500/[0.05] shadow-inner dark:border-zinc-600 dark:bg-zinc-950/50 sm:max-h-[min(20rem,45vh)]">
               <img
                 src={preview}
                 alt="Anteprima prodotto"
                 className="max-h-full max-w-full object-contain"
+                onError={() => setPreviewError(true)}
               />
+            </div>
+          )}
+
+          {activeFile && previewError && (
+            <div className="flex aspect-[4/3] max-h-[min(18rem,42vh)] w-full items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-zinc-500/[0.04] p-6 text-center shadow-inner dark:border-zinc-600 dark:bg-zinc-950/50 sm:max-h-[min(20rem,45vh)]">
+              <div className="max-w-sm">
+                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Anteprima non disponibile</p>
+                <p className="mt-2 break-words text-sm text-zinc-600 dark:text-zinc-300">{activeFile.name}</p>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  {isHeicFile(activeFile)
+                    ? 'Conversione HEIC non riuscita. La foto resta in coda, ma prova a convertirla in JPG se il salvataggio fallisce.'
+                    : 'Il browser non riesce a mostrare questa immagine, ma il file resta in coda.'}
+                  {formatFileSize(activeFile.size) ? ` (${formatFileSize(activeFile.size)})` : ''}
+                </p>
+              </div>
             </div>
           )}
 
