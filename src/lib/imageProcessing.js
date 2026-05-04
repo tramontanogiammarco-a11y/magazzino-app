@@ -141,7 +141,16 @@ export function canvasToBlob(canvas, type, quality) {
 
 export async function preparePhotoForUpload(file) {
   if (!file) return file
-  const readableFile = await ensureBrowserReadableImage(file)
+  let readableFile
+  try {
+    readableFile = await ensureBrowserReadableImage(file)
+  } catch (error) {
+    if (isHeicFile(file)) {
+      console.warn('[magazzino] conversione HEIC upload fallita, carico originale', error)
+      return file
+    }
+    throw error
+  }
   const originalType = String(readableFile?.type || '').toLowerCase()
   const isProbablyImage = originalType.startsWith('image/') || /\.(jpe?g|png|webp)$/i.test(readableFile?.name || '')
   if (!isProbablyImage) return readableFile

@@ -85,6 +85,7 @@ export default function UploadPage() {
   const [activeIndex, setActiveIndex] = useState(0)
   const [preview, setPreview] = useState('')
   const [previewError, setPreviewError] = useState(false)
+  const [previewErrorMessage, setPreviewErrorMessage] = useState('')
   const [form, setForm] = useState(initialForm)
   const [loadingVision, setLoadingVision] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -123,11 +124,13 @@ export default function UploadPage() {
     if (!activeItem || !activeFile) {
       setPreview('')
       setPreviewError(false)
+      setPreviewErrorMessage('')
       return undefined
     }
 
     setPreview('')
     setPreviewError(false)
+    setPreviewErrorMessage('')
 
     ;(async () => {
       try {
@@ -150,6 +153,7 @@ export default function UploadPage() {
         if (!alive) return
         setPreview('')
         setPreviewError(true)
+        setPreviewErrorMessage(error?.message ? String(error.message) : '')
       }
     })()
 
@@ -563,10 +567,15 @@ export default function UploadPage() {
                 <p className="mt-2 break-words text-sm text-zinc-600 dark:text-zinc-300">{activeFile.name}</p>
                 <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                   {isHeicFile(activeFile)
-                    ? 'Conversione HEIC non riuscita. La foto resta in coda, ma prova a convertirla in JPG se il salvataggio fallisce.'
+                    ? 'Anteprima HEIC non disponibile. La foto resta in coda e verrà comunque salvata.'
                     : 'Il browser non riesce a mostrare questa immagine, ma il file resta in coda.'}
                   {formatFileSize(activeFile.size) ? ` (${formatFileSize(activeFile.size)})` : ''}
                 </p>
+                {previewErrorMessage && (
+                  <p className="mt-2 break-words text-[11px] leading-snug text-zinc-400 dark:text-zinc-500">
+                    Dettaglio: {previewErrorMessage}
+                  </p>
+                )}
               </div>
             </div>
           )}
