@@ -100,13 +100,15 @@ export default function UploadPage() {
   const analyzeInFlightRef = useRef(false)
   const analyzeBaselineRef = useRef(null)
   const manualTouchedFieldsRef = useRef(new Set())
+  const convertedFileCacheRef = useRef(new Map())
 
   const safeActiveIndex = useMemo(() => {
     if (fileQueue.length === 0) return 0
     return Math.min(Math.max(0, activeIndex), fileQueue.length - 1)
   }, [activeIndex, fileQueue.length])
 
-  const activeFile = fileQueue[safeActiveIndex]?.file ?? null
+  const activeItem = fileQueue[safeActiveIndex] ?? null
+  const activeFile = activeItem?.file ?? null
 
   /** Allinea activeIndex se fuori range (senza dipendere solo dalla lunghezza) */
   useEffect(() => {
@@ -118,7 +120,7 @@ export default function UploadPage() {
     let alive = true
     let url = ''
 
-    if (!activeFile) {
+    if (!activeItem || !activeFile) {
       setPreview('')
       setPreviewError(false)
       return undefined
@@ -129,7 +131,17 @@ export default function UploadPage() {
 
     ;(async () => {
       try {
-        const readableFile = await ensureBrowserReadableImage(activeFile)
+        const cacheKey = activeItem.id
+        let readableFile = convertedFileCacheRef.current.get(cacheKey)
+        if (!readableFile) {
+          readableFile = await ensureBrowserReadableImage(activeFile)
+          if (isHeicFile(activeFile)) {
+            convertedFileCacheRef.current.set(cacheKey, readableFile)
+            setFileQueue((queue) =>
+              queue.map((item) => (item.id === cacheKey ? { ...item, file: readableFile } : item)),
+            )
+          }
+        }
         if (!alive) return
         url = URL.createObjectURL(readableFile)
         setPreview(url)
@@ -145,7 +157,7 @@ export default function UploadPage() {
       alive = false
       if (url) URL.revokeObjectURL(url)
     }
-  }, [activeFile])
+  }, [activeFile, activeItem])
 
   /** Include sempre il valore attuale nel menu, anche se non è ancora in DB (es. da vision). */
   const clientOptions = useMemo(() => {
@@ -198,6 +210,8 @@ export default function UploadPage() {
   }
 
   const removeFromQueue = (index) => {
+    const id = fileQueue[index]?.id
+    if (id) convertedFileCacheRef.current.delete(id)
     setFileQueue((q) => q.filter((_, j) => j !== index))
   }
 
@@ -345,6 +359,8 @@ export default function UploadPage() {
             : ''
 
       const remaining = fileQueue.length - 1
+      const removedId = fileQueue[removeIdx]?.id
+      if (removedId) convertedFileCacheRef.current.delete(removedId)
       setFileQueue((q) => q.filter((_, j) => j !== removeIdx))
       resetFormAndManualFields()
       setMessage(
@@ -428,6 +444,7 @@ export default function UploadPage() {
               ? ` ${sheetA.message}`
               : ''
 
+        convertedFileCacheRef.current.clear()
         setFileQueue([])
         resetFormAndManualFields()
         setActiveIndex(0)
@@ -460,6 +477,7 @@ export default function UploadPage() {
             ? ` ${sheetB.message}`
             : ''
 
+      convertedFileCacheRef.current.clear()
       setFileQueue([])
       resetFormAndManualFields()
       setActiveIndex(0)
