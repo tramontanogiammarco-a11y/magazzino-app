@@ -211,6 +211,10 @@ export default function InventoryPage() {
         client_name: displayOptionalColumn(merged.client_name),
         sku: displaySku(merged.sku),
         slot: displayOptionalColumn(merged.slot),
+        lookupSku: displaySku(prev.sku),
+        lookupClient: displayOptionalColumn(prev.client_name),
+        lookupSlot: displayOptionalColumn(prev.slot),
+        lookupDescription: String(prev.description ?? '').trim(),
       })
       if (!sheetResult.ok) {
         sheetMsg = ` Foglio Google: ${sheetResult.message || 'aggiornamento remoto non attivo'}.`

@@ -1,268 +1,200 @@
-/**
- * Web App (POST, chiunque). Body: JSON in e.postData.contents (text/plain dal proxy / dal browser).
- *
- * Deploy: nuova versione app web dopo ogni modifica.
- *
- * Logica:
- * - update: trova TUTTE le righe con stesso ID articolo, oppure stesso SKU+descrizione, oppure stesso SKU
- *   con id vuoto / uguale; scrive su tutte (così le copie duplicate non restano sfasate e non servono nuove righe).
- * - insert: se ID articolo è già sul foglio, aggiorna quella riga (doppio invio); altrimenti append.
+/** Google Sheets webhook per Magazzino.
+ * Colonne: A data, B descrizione, C stato, D vuota, E cliente, F SKU, G slot, I prezzo, J ID articolo.
  */
-var ID_ARTICLE_DEFAULT_COLUMN = 10 // colonna J
-var PRICE_DEFAULT_COLUMN = 9 // colonna I
-
 function doPost(e) {
   try {
-    if (!e || !e.postData) {
-      return jsonOut_({ ok: false, error: 'postData mancante' })
-    }
-    var ep = e.parameter || {}
-    var hasGs = Object.keys(ep).some(function (k) {
-      return k.indexOf('gs_') === 0
-    })
-    if ((!e.postData.contents || !String(e.postData.contents).trim()) && !hasGs) {
-      return jsonOut_({ ok: false, error: 'Body vuoto e nessun parametro gs_*' })
-    }
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    var data = {};
+    if (e && e.postData && e.postData.contents) data = JSON.parse(e.postData.contents || '{}');
+    mergeQueryParams_(data, e && e.parameter ? e.parameter : {});
 
-    var data = {}
-    try {
-      if (e.postData.contents && String(e.postData.contents).trim()) {
-        data = JSON.parse(e.postData.contents)
-      }
-    } catch (err) {
-      return jsonOut_({ ok: false, error: 'JSON non valido: ' + String(err.message || err) })
-    }
-    mergeGsParameters_(data, ep)
-
-    const sh = getSheet_()
-    const lastCol = Math.max(1, sh.getLastColumn())
-    const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0]
-    const map = buildHeaderMap_(headers)
-    ensureIdColumn_(sh, map)
-
-    const action = String(data.action || 'insert').toLowerCase()
-    const productId = data.productId != null ? String(data.productId).trim() : ''
-    const idCol = map.id_prodotto
-
-    /** insert idempotente: stesso UUID già presente → aggiorna, non nuova riga */
-    if (action === 'insert' && productId) {
-      const dup = findRowById_(sh, idCol, productId)
-      if (dup > 0) {
-        writeProductRow_(sh, dup, map, data, false)
-        return jsonOut_({ ok: true, mode: 'insert_dedupe', row: dup })
-      }
-    }
+    var action = String(data.action || 'insert').toLowerCase();
+    var rows = findTargetRows_(sheet, data);
 
     if (action === 'update') {
-      if (!productId) {
-        return jsonOut_({ ok: false, error: 'update senza productId' })
+      if (rows.length === 0) {
+        return jsonOut_({ ok: false, error: 'Riga non trovata', lookup: debugLookup_(data) });
       }
-      const rows = findAllRowsForUpdate_(sh, map, idCol, productId, String(data.sku || ''), String(data.description || ''))
-      if (rows.length > 0) {
-        for (var ri = 0; ri < rows.length; ri++) {
-          writeProductRow_(sh, rows[ri], map, data, false)
-        }
-        return jsonOut_({ ok: true, mode: 'update', rows: rows.length })
-      }
-      return jsonOut_({
-        ok: false,
-        error:
-          'Nessuna riga da aggiornare (ID articolo/SKU non trovati sul foglio). Controlla colonne ID articolo e SKU.',
-      })
+      for (var i = 0; i < rows.length; i++) updateExistingRow_(sheet, rows[i], data);
+      return jsonOut_({ ok: true, mode: 'update', rows: rows, sku: data.sku || '', price: data.price || '', status: data.status || '' });
     }
 
-    const newRow = sh.getLastRow() + 1
-    writeProductRow_(sh, newRow, map, data, true)
-    return jsonOut_({ ok: true, mode: 'insert', row: newRow })
+    if (rows.length > 0) {
+      for (var j = 0; j < rows.length; j++) updateExistingRow_(sheet, rows[j], data);
+      return jsonOut_({ ok: true, mode: 'insert_dedupe', rows: rows, sku: data.sku || '', price: data.price || '', status: data.status || '' });
+    }
+
+    var row = sheet.getLastRow() + 1;
+    writeFullRow_(sheet, row, data);
+    return jsonOut_({ ok: true, mode: 'insert', row: row, sku: data.sku || '', price: data.price || '', status: data.status || '' });
   } catch (err) {
-    return jsonOut_({ ok: false, error: String(err && err.message ? err.message : err) })
+    return jsonOut_({ ok: false, error: err.message });
   }
+}
+
+function doGet() {
+  return jsonOut_({ ok: true, message: 'Magazzino webhook attivo' });
+}
+
+function mergeQueryParams_(data, q) {
+  if (q.gs_action) data.action = String(q.gs_action);
+  if (q.gs_pid) data.productId = String(q.gs_pid);
+  if (q.gs_date) data.date = String(q.gs_date);
+  if (q.gs_status) data.status = String(q.gs_status);
+  if (q.gs_price) data.price = String(q.gs_price);
+  if (q.gs_sku) data.sku = String(q.gs_sku);
+  if (q.gs_slot) data.slot = String(q.gs_slot);
+  if (q.gs_client) data.client_name = String(q.gs_client);
+  if (q.gs_desc) data.description = String(q.gs_desc);
+  if (q.gs_lookup_sku) data.lookupSku = String(q.gs_lookup_sku);
+  if (q.gs_lookup_client) data.lookupClient = String(q.gs_lookup_client);
+  if (q.gs_lookup_slot) data.lookupSlot = String(q.gs_lookup_slot);
+  if (q.gs_lookup_desc) data.lookupDescription = String(q.gs_lookup_desc);
+}
+
+function findTargetRows_(sheet, data) {
+  var rows = [];
+  var productId = String(data.productId || '').trim();
+  var sku = normalizeSku_(data.sku);
+  var lookupSku = normalizeSku_(data.lookupSku);
+  var desc = normalizeText_(data.description);
+  var lookupDesc = normalizeText_(data.lookupDescription);
+  var clientName = normalizeText_(data.client_name);
+  var lookupClient = normalizeText_(data.lookupClient);
+  var slot = normalizeText_(data.slot);
+  var lookupSlot = normalizeText_(data.lookupSlot);
+
+  if (productId) rows = rows.concat(findRowsByValue_(sheet, 10, productId));
+  if (rows.length === 0 && lookupSku) rows = rows.concat(findRowsBySku_(sheet, 6, lookupSku));
+  if (rows.length === 0 && sku) rows = rows.concat(findRowsBySku_(sheet, 6, sku));
+  if (rows.length === 0 && lookupDesc) rows = rows.concat(findRowsByText_(sheet, 2, lookupDesc));
+  if (rows.length === 0 && desc) rows = rows.concat(findRowsByText_(sheet, 2, desc));
+  if (rows.length === 0 && lookupClient && lookupSlot) rows = rows.concat(findRowsByClientSlot_(sheet, lookupClient, lookupSlot));
+  if (rows.length === 0 && clientName && slot) rows = rows.concat(findRowsByClientSlot_(sheet, clientName, slot));
+
+  return uniqueRows_(rows);
+}
+
+function updateExistingRow_(sheet, row, data) {
+  if (data.date != null) sheet.getRange(row, 1).setValue(data.date);
+  if (data.description != null) sheet.getRange(row, 2).setValue(data.description);
+  if (data.status != null) {
+    var statusCell = sheet.getRange(row, 3);
+    statusCell.clearDataValidations();
+    statusCell.setValue(String(data.status));
+  }
+  if (data.price != null) {
+    sheet.getRange(row, 4).setValue('');
+    sheet.getRange(row, 9).setValue(String(data.price));
+  }
+  if (data.client_name != null) sheet.getRange(row, 5).setValue(data.client_name);
+  if (data.sku != null) {
+    var skuCell = sheet.getRange(row, 6);
+    skuCell.setNumberFormat('@');
+    skuCell.setValue(normalizeSku_(data.sku));
+  }
+  if (data.slot != null) sheet.getRange(row, 7).setValue(data.slot);
+  if (data.productId != null) sheet.getRange(row, 10).setValue(data.productId);
+}
+
+function writeFullRow_(sheet, row, data) {
+  sheet.getRange(row, 1).setValue(data.date || new Date().toLocaleDateString('it-IT'));
+  sheet.getRange(row, 2).setValue(data.description || '');
+  var statusCell = sheet.getRange(row, 3);
+  statusCell.clearDataValidations();
+  statusCell.setValue(data.status || '');
+  sheet.getRange(row, 4).setValue('');
+  sheet.getRange(row, 5).setValue(data.client_name || '');
+  var skuCell = sheet.getRange(row, 6);
+  skuCell.setNumberFormat('@');
+  skuCell.setValue(normalizeSku_(data.sku));
+  sheet.getRange(row, 7).setValue(data.slot || '');
+  sheet.getRange(row, 9).setValue(data.price != null ? String(data.price) : '');
+  sheet.getRange(row, 10).setValue(data.productId || '');
+}
+
+function findRowsByValue_(sheet, col, value) {
+  var lastRow = sheet.getLastRow();
+  var rows = [];
+  if (lastRow < 2 || !value) return rows;
+  var values = sheet.getRange(2, col, lastRow - 1, 1).getValues();
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][0] || '').trim() === String(value).trim()) rows.push(i + 2);
+  }
+  return rows;
+}
+
+function findRowsBySku_(sheet, col, sku) {
+  var lastRow = sheet.getLastRow();
+  var rows = [];
+  if (lastRow < 2 || !sku) return rows;
+  var values = sheet.getRange(2, col, lastRow - 1, 1).getValues();
+  for (var i = 0; i < values.length; i++) {
+    if (normalizeSku_(values[i][0]) === sku) rows.push(i + 2);
+  }
+  return rows;
+}
+
+function findRowsByText_(sheet, col, text) {
+  var lastRow = sheet.getLastRow();
+  var rows = [];
+  var needle = normalizeText_(text);
+  if (lastRow < 2 || !needle) return rows;
+  var values = sheet.getRange(2, col, lastRow - 1, 1).getValues();
+  for (var i = 0; i < values.length; i++) {
+    if (normalizeText_(values[i][0]) === needle) rows.push(i + 2);
+  }
+  return rows;
+}
+
+function findRowsByClientSlot_(sheet, clientName, slot) {
+  var lastRow = sheet.getLastRow();
+  var rows = [];
+  if (lastRow < 2) return rows;
+  var values = sheet.getRange(2, 1, lastRow - 1, 10).getValues();
+  for (var i = 0; i < values.length; i++) {
+    var rowClient = normalizeText_(values[i][4]);
+    var rowSlot = normalizeText_(values[i][6]);
+    if (rowClient === clientName && rowSlot === slot) rows.push(i + 2);
+  }
+  return rows;
+}
+
+function normalizeSku_(value) {
+  return String(value || '').replace(/\D/g, '').trim();
+}
+
+function normalizeText_(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function uniqueRows_(rows) {
+  var seen = {};
+  var out = [];
+  for (var i = 0; i < rows.length; i++) {
+    var row = Number(rows[i]);
+    if (row > 1 && !seen[row]) {
+      seen[row] = true;
+      out.push(row);
+    }
+  }
+  return out;
+}
+
+function debugLookup_(data) {
+  return {
+    productId: data.productId || '',
+    sku: data.sku || '',
+    lookupSku: data.lookupSku || '',
+    description: data.description || '',
+    lookupDescription: data.lookupDescription || '',
+    client_name: data.client_name || '',
+    lookupClient: data.lookupClient || '',
+    slot: data.slot || '',
+    lookupSlot: data.lookupSlot || ''
+  };
 }
 
 function jsonOut_(obj) {
-  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON)
-}
-
-/** Campi inviati anche in query (?gs_status=…&gs_price=…) per script che non leggono il JSON. */
-function mergeGsParameters_(data, ep) {
-  if (ep.gs_action) data.action = String(ep.gs_action).toLowerCase()
-  if (ep.gs_pid) data.productId = String(ep.gs_pid)
-  if (ep.gs_date) data.date = String(ep.gs_date)
-  if (ep.gs_status) data.status = String(ep.gs_status)
-  if (ep.gs_price) data.price = String(ep.gs_price)
-  if (ep.gs_sku) data.sku = String(ep.gs_sku)
-  if (ep.gs_slot) data.slot = String(ep.gs_slot)
-  if (ep.gs_client) data.client_name = String(ep.gs_client)
-  if (ep.gs_desc) data.description = String(ep.gs_desc)
-}
-
-function getSheet_() {
-  const props = PropertiesService.getScriptProperties()
-  const id = props.getProperty('SPREADSHEET_ID')
-  if (id) {
-    const ss = SpreadsheetApp.openById(id)
-    const name = props.getProperty('SHEET_NAME')
-    if (name) return ss.getSheetByName(name) || ss.getSheets()[0]
-    return ss.getSheets()[0]
-  }
-  return SpreadsheetApp.getActiveSpreadsheet().getActiveSheet()
-}
-
-function normHeader_(h) {
-  return String(h || '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-}
-
-function buildHeaderMap_(headers) {
-  const map = {}
-  for (let i = 0; i < headers.length; i++) {
-    const h = normHeader_(headers[i])
-    if (!h) continue
-    const col = i + 1
-    if (
-      h === 'id_prodotto' ||
-      h === 'id articolo' ||
-      h === 'idarticolo' ||
-      h === 'product_id' ||
-      h === 'productid' ||
-      h === 'uuid' ||
-      h === 'supabase id'
-    ) {
-      map.id_prodotto = col
-    } else if (h === 'data' || h === 'date') map.data = col
-    else if (h === 'descrizione' || h === 'titolo' || h === 'description' || h === 'articolo')
-      map.descrizione = col
-    else if (h === 'stato' || h === 'status') map.stato = col
-    else if (h === 'prezzo' || h === 'price') map.prezzo = col
-    else if (h === 'cliente' || h === 'client' || h === 'proprietario' || h === 'nome cliente') map.cliente = col
-    else if (h === 'sku' || h === 'codice') map.sku = col
-    else if (h === 'slot' || h === 'posizione') map.slot = col
-  }
-
-  if (!map.data) map.data = 1
-  if (!map.descrizione) map.descrizione = 2
-  if (!map.stato) map.stato = 3
-  map.prezzo = PRICE_DEFAULT_COLUMN
-  if (!map.cliente) map.cliente = 5
-  if (!map.sku) map.sku = 6
-  if (!map.slot) map.slot = 7
-  return map
-}
-
-function ensureIdColumn_(sh, map) {
-  if (map.id_prodotto > 0) return
-  var c = ID_ARTICLE_DEFAULT_COLUMN
-  var existing = String(sh.getRange(1, c).getValue() || '').trim()
-  if (existing && normHeader_(existing) !== 'id articolo' && normHeader_(existing) !== 'idarticolo') {
-    c = Math.max(1, sh.getLastColumn()) + 1
-  }
-  sh.getRange(1, c).setValue('ID articolo')
-  map.id_prodotto = c
-}
-
-function findRowById_(sh, idCol, productId) {
-  if (idCol < 1 || !productId) return -1
-  const last = sh.getLastRow()
-  if (last < 2) return -1
-  const values = sh.getRange(2, idCol, last, idCol).getValues()
-  for (let i = 0; i < values.length; i++) {
-    if (String(values[i][0] || '').trim() === productId) return i + 2
-  }
-  return -1
-}
-
-function normalizeDesc_(s) {
-  return String(s || '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-}
-
-function uniqueSortedRows_(arr) {
-  var seen = {}
-  var out = []
-  for (var i = 0; i < arr.length; i++) {
-    var r = arr[i]
-    if (r > 0 && !seen[r]) {
-      seen[r] = 1
-      out.push(r)
-    }
-  }
-  out.sort(function (a, b) {
-    return a - b
-  })
-  return out
-}
-
-/**
- * Tutte le righe da aggiornare: stesso UUID, oppure stesso articolo (SKU+descrizione), oppure stesso SKU con id coerente.
- * Così le copie duplicate sul foglio ricevono tutte lo stesso stato/prezzo.
- */
-function findAllRowsForUpdate_(sh, map, idCol, productId, sku, description) {
-  var rows = []
-  var last = sh.getLastRow()
-  if (last < 2) return rows
-
-  if (idCol > 0 && productId) {
-    for (var r1 = 2; r1 <= last; r1++) {
-      if (String(sh.getRange(r1, idCol).getValue() || '').trim() === productId) rows.push(r1)
-    }
-  }
-  if (rows.length > 0) return uniqueSortedRows_(rows)
-
-  var skuDigits = String(sku || '')
-    .replace(/\D/g, '')
-    .trim()
-  var descNorm = normalizeDesc_(description)
-
-  if (map.sku > 0 && map.descrizione > 0 && (skuDigits || descNorm)) {
-    for (var r2 = 2; r2 <= last; r2++) {
-      var s2 = String(sh.getRange(r2, map.sku).getValue() || '')
-        .replace(/\D/g, '')
-        .trim()
-      var d2 = normalizeDesc_(sh.getRange(r2, map.descrizione).getValue())
-      var skuOk2 = !skuDigits || s2 === skuDigits
-      var descOk2 = !descNorm || d2 === descNorm
-      if (!(skuOk2 && descOk2 && (skuDigits || descNorm))) continue
-      var id2 = idCol > 0 ? String(sh.getRange(r2, idCol).getValue() || '').trim() : ''
-      if (!id2 || id2 === productId) rows.push(r2)
-    }
-  }
-  if (rows.length > 0) return uniqueSortedRows_(rows)
-
-  if (map.sku > 0 && skuDigits && idCol > 0) {
-    for (var r3 = 2; r3 <= last; r3++) {
-      var s3 = String(sh.getRange(r3, map.sku).getValue() || '')
-        .replace(/\D/g, '')
-        .trim()
-      if (s3 !== skuDigits) continue
-      var id3 = String(sh.getRange(r3, idCol).getValue() || '').trim()
-      if (!id3 || id3 === productId) rows.push(r3)
-    }
-  }
-  return uniqueSortedRows_(rows)
-}
-
-function writeProductRow_(sh, row, map, data, isInsert) {
-  const set = (col, v) => {
-    if (col > 0) sh.getRange(row, col).setValue(v)
-  }
-  if (isInsert && map.id_prodotto > 0 && data.productId) {
-    set(map.id_prodotto, String(data.productId).trim())
-  }
-  set(map.data, data.date || '')
-  set(map.descrizione, data.description || '')
-  set(map.stato, data.status || '')
-  set(map.prezzo, data.price != null ? String(data.price) : '')
-  set(map.cliente, data.client_name || '')
-  set(map.sku, data.sku || '')
-  set(map.slot, data.slot || '')
-  if (!isInsert && map.id_prodotto > 0 && data.productId) {
-    set(map.id_prodotto, String(data.productId).trim())
-  }
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }

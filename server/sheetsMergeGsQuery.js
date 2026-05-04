@@ -38,6 +38,18 @@ export function mergeGsQueryIntoBody(body, query) {
   if (get('gs_desc') != null && String(get('gs_desc')).trim()) {
     base.description = String(get('gs_desc'))
   }
+  if (get('gs_lookup_sku') != null && String(get('gs_lookup_sku')).trim()) {
+    base.lookupSku = String(get('gs_lookup_sku'))
+  }
+  if (get('gs_lookup_client') != null && String(get('gs_lookup_client')).trim()) {
+    base.lookupClient = String(get('gs_lookup_client'))
+  }
+  if (get('gs_lookup_slot') != null && String(get('gs_lookup_slot')).trim()) {
+    base.lookupSlot = String(get('gs_lookup_slot'))
+  }
+  if (get('gs_lookup_desc') != null && String(get('gs_lookup_desc')).trim()) {
+    base.lookupDescription = String(get('gs_lookup_desc'))
+  }
   return base
 }
 

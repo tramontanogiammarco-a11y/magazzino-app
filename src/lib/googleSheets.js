@@ -39,6 +39,17 @@ function appendGsSyncQuery(searchParams, payload) {
   }
   const desc = String(payload.description || '').trim()
   if (desc) searchParams.set('gs_desc', desc.slice(0, GS_DESC_MAX))
+  if (payload.lookupSku != null && payload.lookupSku !== '') {
+    searchParams.set('gs_lookup_sku', String(payload.lookupSku))
+  }
+  if (payload.lookupClient != null && payload.lookupClient !== '') {
+    searchParams.set('gs_lookup_client', String(payload.lookupClient).slice(0, 120))
+  }
+  if (payload.lookupSlot != null && payload.lookupSlot !== '') {
+    searchParams.set('gs_lookup_slot', String(payload.lookupSlot))
+  }
+  const lookupDesc = String(payload.lookupDescription || '').trim()
+  if (lookupDesc) searchParams.set('gs_lookup_desc', lookupDesc.slice(0, GS_DESC_MAX))
 }
 
 function googleSheetsWebhookUrlWithSyncQuery(baseUrl, payload) {
@@ -76,6 +87,10 @@ export async function notifyGoogleSheetsNewProduct({
   client_name,
   sku,
   slot,
+  lookupSku = '',
+  lookupClient = '',
+  lookupSlot = '',
+  lookupDescription = '',
 }) {
   const payload = {
     date: todayDdMmYyyy(),
@@ -87,6 +102,10 @@ export async function notifyGoogleSheetsNewProduct({
     client_name: client_name ?? '',
     sku: sku != null ? String(sku) : '',
     slot: slot ?? '',
+    lookupSku: lookupSku != null ? String(lookupSku) : '',
+    lookupClient: lookupClient ?? '',
+    lookupSlot: lookupSlot ?? '',
+    lookupDescription: lookupDescription ?? '',
   }
 
   const body = buildSheetsBody(payload)
