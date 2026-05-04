@@ -208,9 +208,9 @@ export default function InventoryPage() {
         description: String(merged.description ?? '').trim() || 'Articolo',
         status: merged.status ?? '',
         price: merged.price,
-        client_name: merged.client_name ?? '',
-        sku: merged.sku ?? '',
-        slot: merged.slot ?? '',
+        client_name: displayOptionalColumn(merged.client_name),
+        sku: displaySku(merged.sku),
+        slot: displayOptionalColumn(merged.slot),
       })
       if (!sheetResult.ok) {
         sheetMsg = ` Foglio Google: ${sheetResult.message || 'aggiornamento remoto non attivo'}.`
@@ -240,9 +240,9 @@ export default function InventoryPage() {
         description: String(product.description ?? '').trim() || 'Articolo',
         status: DELETED_STATUS,
         price: product.price,
-        client_name: product.client_name ?? '',
-        sku: product.sku ?? '',
-        slot: product.slot ?? '',
+        client_name: displayOptionalColumn(product.client_name),
+        sku: displaySku(product.sku),
+        slot: displayOptionalColumn(product.slot),
       })
       if (!sheetResult.ok) {
         sheetMsg = ` Foglio Google: ${sheetResult.message || 'stato Eliminato non aggiornato'}.`

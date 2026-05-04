@@ -54,6 +54,19 @@ function parsePriceInput(raw) {
   return { ok: true, value: n }
 }
 
+function buildSheetsProductPayload({ productId, action, description, status, price, clientName, sku, slot }) {
+  return {
+    productId,
+    action,
+    description,
+    status,
+    price,
+    client_name: clientName ?? '',
+    sku: sku ?? '',
+    slot: slot ?? '',
+  }
+}
+
 /** Escludi solo tipi chiaramente non immagine; il resto passa (MIME spesso vuoto su iPhone). */
 function acceptPickerFile(file) {
   if (!file) return false
@@ -288,14 +301,16 @@ export default function UploadPage() {
       if (error) throw error
 
       const sheet = await notifyGoogleSheetsNewProduct({
-        productId: insertedRow?.id ?? null,
-        action: 'insert',
-        description: payload.description ?? desc,
-        status: payload.status ?? form.status,
-        price: payload.price,
-        client_name: payload.client_name ?? '',
-        sku: payload.sku ?? '',
-        slot: payload.slot ?? '',
+        ...buildSheetsProductPayload({
+          productId: insertedRow?.id ?? null,
+          action: 'insert',
+          description: desc,
+          status: form.status,
+          price: parsedPrice.value,
+          clientName: clientName ?? '',
+          sku: skuVal ?? '',
+          slot: slotValue ?? '',
+        }),
       })
       const sheetNote =
         !sheet.ok
@@ -370,14 +385,16 @@ export default function UploadPage() {
         if (notesErr) throw notesErr
 
         const sheetA = await notifyGoogleSheetsNewProduct({
-          productId: row.id,
-          action: 'insert',
-          description: payload.description ?? desc,
-          status: payload.status ?? form.status,
-          price: payload.price,
-          client_name: payload.client_name ?? '',
-          sku: payload.sku ?? '',
-          slot: payload.slot ?? '',
+          ...buildSheetsProductPayload({
+            productId: row.id,
+            action: 'insert',
+            description: desc,
+            status: form.status,
+            price: parsedPrice.value,
+            clientName: clientName ?? '',
+            sku: skuVal ?? '',
+            slot: slotValue ?? '',
+          }),
         })
         const sheetNoteA =
           !sheetA.ok
@@ -400,14 +417,16 @@ export default function UploadPage() {
       const inserted = { ...row, photo_urls: urls }
 
       const sheetB = await notifyGoogleSheetsNewProduct({
-        productId: row.id,
-        action: 'insert',
-        description: payload.description ?? desc,
-        status: payload.status ?? form.status,
-        price: payload.price,
-        client_name: payload.client_name ?? '',
-        sku: payload.sku ?? '',
-        slot: payload.slot ?? '',
+        ...buildSheetsProductPayload({
+          productId: row.id,
+          action: 'insert',
+          description: desc,
+          status: form.status,
+          price: parsedPrice.value,
+          clientName: clientName ?? '',
+          sku: skuVal ?? '',
+          slot: slotValue ?? '',
+        }),
       })
       const sheetNoteB =
         !sheetB.ok
