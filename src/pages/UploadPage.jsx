@@ -79,13 +79,17 @@ function acceptPickerFile(file) {
   return Boolean(file.size > 0)
 }
 
+function isUnsupportedHeicConversionError(error) {
+  const message = String(error?.message || error || '')
+  return /heic|heif|compression format|bad seek|conversione immagine|conversione heic/i.test(message)
+}
+
 export default function UploadPage() {
   /** Coda foto: ogni elemento ha id stabile per le key React */
   const [fileQueue, setFileQueue] = useState([])
   const [activeIndex, setActiveIndex] = useState(0)
   const [preview, setPreview] = useState('')
   const [previewError, setPreviewError] = useState(false)
-  const [previewErrorMessage, setPreviewErrorMessage] = useState('')
   const [form, setForm] = useState(initialForm)
   const [loadingVision, setLoadingVision] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -124,13 +128,11 @@ export default function UploadPage() {
     if (!activeItem || !activeFile) {
       setPreview('')
       setPreviewError(false)
-      setPreviewErrorMessage('')
       return undefined
     }
 
     setPreview('')
     setPreviewError(false)
-    setPreviewErrorMessage('')
 
     ;(async () => {
       try {
@@ -153,7 +155,6 @@ export default function UploadPage() {
         if (!alive) return
         setPreview('')
         setPreviewError(true)
-        setPreviewErrorMessage(error?.message ? String(error.message) : '')
       }
     })()
 
@@ -277,7 +278,12 @@ export default function UploadPage() {
         }
       })
     } catch (error) {
-      setMessage(`Errore Telovendo AI: ${error.message}`)
+      const hasHeic = Array.from(filesToAnalyze || []).some(isHeicFile)
+      if (hasHeic && isUnsupportedHeicConversionError(error)) {
+        setMessage('Telovendo AI non riesce a leggere questo formato HEIC. Compila i campi manualmente e salva: le foto restano in coda.')
+      } else {
+        setMessage(`Errore Telovendo AI: ${error.message}`)
+      }
     } finally {
       analyzeBaselineRef.current = null
       analyzeInFlightRef.current = false
@@ -567,15 +573,10 @@ export default function UploadPage() {
                 <p className="mt-2 break-words text-sm text-zinc-600 dark:text-zinc-300">{activeFile.name}</p>
                 <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                   {isHeicFile(activeFile)
-                    ? 'Anteprima HEIC non disponibile. La foto resta in coda e verrà comunque salvata.'
+                    ? 'Questo HEIC non può essere mostrato qui. La foto resta in coda e verrà comunque salvata.'
                     : 'Il browser non riesce a mostrare questa immagine, ma il file resta in coda.'}
                   {formatFileSize(activeFile.size) ? ` (${formatFileSize(activeFile.size)})` : ''}
                 </p>
-                {previewErrorMessage && (
-                  <p className="mt-2 break-words text-[11px] leading-snug text-zinc-400 dark:text-zinc-500">
-                    Dettaglio: {previewErrorMessage}
-                  </p>
-                )}
               </div>
             </div>
           )}
