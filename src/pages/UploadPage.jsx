@@ -114,6 +114,7 @@ export default function UploadPage() {
 
   const activeItem = fileQueue[safeActiveIndex] ?? null
   const activeFile = activeItem?.file ?? null
+  const activeHeicPreviewUnsupported = Boolean(activeFile && previewError && isHeicFile(activeFile))
 
   /** Allinea activeIndex se fuori range (senza dipendere solo dalla lunghezza) */
   useEffect(() => {
@@ -518,11 +519,11 @@ export default function UploadPage() {
             type="file"
             accept="image/*"
             multiple
-            className="absolute inset-0 z-10 block h-full min-h-[3.25rem] w-full cursor-pointer opacity-0"
+            className="sr-only"
             onChange={onFileInputChange}
             aria-label="Carica foto prodotto"
           />
-          <span className="pointer-events-none relative z-0 select-none">Carica prodotto</span>
+          <span className="select-none">Carica prodotto</span>
         </label>
         {fileQueue.length > 0 && (
           <div className="mt-3 space-y-2">
@@ -584,11 +585,15 @@ export default function UploadPage() {
           <button
             type="button"
             onClick={onAnalyze}
-            disabled={!activeFile || loadingVision}
+            disabled={!activeFile || loadingVision || activeHeicPreviewUnsupported}
             aria-label="Rianalizza con Telovendo AI"
             className="app-btn-primary w-full py-3.5"
           >
-            {loadingVision ? 'Analisi in corso…' : 'Rianalizza con Telovendo AI'}
+            {activeHeicPreviewUnsupported
+              ? 'AI non disponibile per questo HEIC'
+              : loadingVision
+                ? 'Analisi in corso…'
+                : 'Rianalizza con Telovendo AI'}
           </button>
         </div>
       </div>
