@@ -113,15 +113,44 @@ function itemShortDescription(item) {
   return description
 }
 
-async function prepareProductImageForPdf(url) {
-  const src = getProductPhotoThumbnailSrc(url)
+function proxiedImageUrl(src) {
+  return `/api/image-proxy?url=${encodeURIComponent(src)}`
+}
+
+async function fetchImageBlob(src) {
   const res = await fetch(src, {
     mode: 'cors',
     credentials: 'omit',
     cache: 'no-store',
   })
   if (!res.ok) throw new Error('photo fetch')
-  const blob = await res.blob()
+  return res.blob()
+}
+
+async function loadImageBlobWithFallback(url) {
+  const candidates = [
+    getProductPhotoThumbnailSrc(url),
+    url,
+    proxiedImageUrl(getProductPhotoThumbnailSrc(url)),
+    proxiedImageUrl(url),
+  ].filter(Boolean)
+
+  let lastError = null
+  const tried = new Set()
+  for (const src of candidates) {
+    if (tried.has(src)) continue
+    tried.add(src)
+    try {
+      return await fetchImageBlob(src)
+    } catch (err) {
+      lastError = err
+    }
+  }
+  throw lastError || new Error('photo fetch')
+}
+
+async function prepareProductImageForPdf(url) {
+  const blob = await loadImageBlobWithFallback(url)
 
   let iw
   let ih

@@ -13,6 +13,9 @@
     },
     "api/sheets-forward.js": {
       "maxDuration": 30
+    },
+    "api/image-proxy.js": {
+      "maxDuration": 30
     }
   }
 }
