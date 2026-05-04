@@ -180,6 +180,7 @@ export default function UploadPage() {
     analyzeBaselineRef.current = {
       description: form.description ?? '',
       sku: form.sku ?? '',
+      price: form.price ?? '',
       client_name: form.client_name ?? '',
       slot: form.slot ?? '',
       notes: form.notes ?? '',
@@ -199,6 +200,7 @@ export default function UploadPage() {
         const aiNotes = (data.notes ?? '').toString().trim()
         const aiDescription = (data.description ?? '').toString()
         const aiSku = (data.sku ?? '').toString()
+        const aiPrice = (data.price ?? '').toString()
         const keepManual = (field, aiValue) => {
           if (manualTouchedFieldsRef.current.has(field)) return (old[field] ?? '').toString()
           const current = (old[field] ?? '').toString()
@@ -214,6 +216,7 @@ export default function UploadPage() {
           slot: old.slot,
           description: keepManual('description', aiDescription),
           sku: keepManual('sku', aiSku),
+          price: keepManual('price', aiPrice),
           notes: keepManual('notes', aiNotes.length > 0 ? aiNotes : ''),
         }
       })
