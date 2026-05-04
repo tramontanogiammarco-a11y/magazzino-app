@@ -84,17 +84,18 @@ function updateExistingRow_(sheet, row, data) {
     statusCell.setValue(String(data.status));
   }
   if (data.price != null) {
-    sheet.getRange(row, 4).setValue('');
-    sheet.getRange(row, 9).setValue(String(data.price));
+    sheet.getRange(row, 4).clearDataValidations().setValue('');
+    sheet.getRange(row, 9).clearDataValidations().setValue(String(data.price));
   }
-  if (data.client_name != null) sheet.getRange(row, 5).setValue(data.client_name);
+  if (data.client_name != null) sheet.getRange(row, 5).clearDataValidations().setValue(data.client_name);
   if (data.sku != null) {
     var skuCell = sheet.getRange(row, 6);
+    skuCell.clearDataValidations();
     skuCell.setNumberFormat('@');
     skuCell.setValue(normalizeSku_(data.sku));
   }
-  if (data.slot != null) sheet.getRange(row, 7).setValue(data.slot);
-  if (data.productId != null) sheet.getRange(row, 10).setValue(data.productId);
+  if (data.slot != null) sheet.getRange(row, 7).clearDataValidations().setValue(data.slot);
+  if (data.productId != null) sheet.getRange(row, 10).clearDataValidations().setValue(data.productId);
 }
 
 function writeFullRow_(sheet, row, data) {
@@ -103,14 +104,15 @@ function writeFullRow_(sheet, row, data) {
   var statusCell = sheet.getRange(row, 3);
   statusCell.clearDataValidations();
   statusCell.setValue(data.status || '');
-  sheet.getRange(row, 4).setValue('');
-  sheet.getRange(row, 5).setValue(data.client_name || '');
+  sheet.getRange(row, 4).clearDataValidations().setValue('');
+  sheet.getRange(row, 5).clearDataValidations().setValue(data.client_name || '');
   var skuCell = sheet.getRange(row, 6);
+  skuCell.clearDataValidations();
   skuCell.setNumberFormat('@');
   skuCell.setValue(normalizeSku_(data.sku));
-  sheet.getRange(row, 7).setValue(data.slot || '');
-  sheet.getRange(row, 9).setValue(data.price != null ? String(data.price) : '');
-  sheet.getRange(row, 10).setValue(data.productId || '');
+  sheet.getRange(row, 7).clearDataValidations().setValue(data.slot || '');
+  sheet.getRange(row, 9).clearDataValidations().setValue(data.price != null ? String(data.price) : '');
+  sheet.getRange(row, 10).clearDataValidations().setValue(data.productId || '');
 }
 
 function findRowsByValue_(sheet, col, value) {
