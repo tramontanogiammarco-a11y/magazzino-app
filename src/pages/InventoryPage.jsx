@@ -45,6 +45,8 @@ export default function InventoryPage() {
   productsRef.current = products
   const [filters, setFilters] = useState({ client: '', slot: '', status: '', from: '', to: '', expiringOnly: false })
   const [quickFilter, setQuickFilter] = useState(null)
+  const [pageSize, setPageSize] = useState(20)
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [clients, setClients] = useState([])
@@ -307,6 +309,15 @@ export default function InventoryPage() {
     }
   }, [activeProducts, incompleteClientNames])
 
+  const statusTotals = useMemo(() => {
+    const totals = Object.fromEntries(STATUSES.map((status) => [status, 0]))
+    for (const p of activeProducts) {
+      const status = normalizeStatus(p.status)
+      totals[status] = (totals[status] || 0) + 1
+    }
+    return totals
+  }, [activeProducts])
+
   const rows = useMemo(() => {
     return activeProducts.filter((p) => {
       if (
@@ -332,6 +343,23 @@ export default function InventoryPage() {
       return true
     })
   }, [activeProducts, filters, quickFilter, incompleteClientNames])
+
+  useEffect(() => {
+    setPage(1)
+  }, [filters, quickFilter, pageSize])
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const pageStart = rows.length === 0 ? 0 : (safePage - 1) * pageSize + 1
+  const pageEnd = Math.min(rows.length, safePage * pageSize)
+  const paginatedRows = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return rows.slice(start, start + pageSize)
+  }, [rows, safePage, pageSize])
+
+  useEffect(() => {
+    if (page !== safePage) setPage(safePage)
+  }, [page, safePage])
 
   const filterStatusClass = STATUSES.includes(filters.status)
     ? STATUS_SELECT_CLASSES[filters.status]
@@ -363,6 +391,25 @@ export default function InventoryPage() {
         onSelect={(key) => setQuickFilter((q) => (q === key ? null : key))}
         onClear={() => setQuickFilter(null)}
       />
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="app-card p-4">
+          <p className="app-text-muted-sm">Totale articoli attivi</p>
+          <p className="mt-1 text-3xl font-semibold tabular-nums text-zinc-950 dark:text-zinc-50">{activeProducts.length}</p>
+        </div>
+        <div className="app-card p-4">
+          <p className="app-text-muted-sm">In magazzino</p>
+          <p className="mt-1 text-3xl font-semibold tabular-nums text-zinc-950 dark:text-zinc-50">{statusTotals.Magazzino || 0}</p>
+        </div>
+        <div className="app-card p-4">
+          <p className="app-text-muted-sm">Caricati</p>
+          <p className="mt-1 text-3xl font-semibold tabular-nums text-zinc-950 dark:text-zinc-50">{statusTotals.Caricato || 0}</p>
+        </div>
+        <div className="app-card p-4">
+          <p className="app-text-muted-sm">Venduti</p>
+          <p className="mt-1 text-3xl font-semibold tabular-nums text-zinc-950 dark:text-zinc-50">{statusTotals.Venduto || 0}</p>
+        </div>
+      </div>
 
       <div className="app-card grid gap-3 p-4 text-base sm:grid-cols-2 sm:gap-4 sm:p-5 md:grid-cols-3 xl:grid-cols-6 xl:p-6">
         <select
@@ -426,13 +473,58 @@ export default function InventoryPage() {
         </button>
       </div>
 
+      <div className="app-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-sm font-medium text-zinc-600 dark:text-zinc-300">
+          {loading
+            ? 'Caricamento articoli…'
+            : rows.length === 0
+              ? 'Nessun articolo da mostrare'
+              : `Mostro ${pageStart}-${pageEnd} di ${rows.length} articoli filtrati`}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 text-sm font-medium text-zinc-600 dark:text-zinc-300">
+            Per pagina
+            <select
+              className="app-input w-auto py-2 text-sm"
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+            >
+              {[10, 20, 50].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={safePage <= 1}
+            className="app-btn-secondary px-3 py-2 text-sm disabled:opacity-45"
+          >
+            Precedente
+          </button>
+          <span className="min-w-20 text-center text-sm font-semibold tabular-nums text-zinc-700 dark:text-zinc-200">
+            {safePage}/{totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={safePage >= totalPages}
+            className="app-btn-secondary px-3 py-2 text-sm disabled:opacity-45"
+          >
+            Successiva
+          </button>
+        </div>
+      </div>
+
       <div className="space-y-4 lg:hidden">
         {loading ? (
           <div className="app-card p-5 text-center app-text-muted">Caricamento…</div>
         ) : rows.length === 0 ? (
           <div className="app-card p-5 text-center app-text-muted">Nessun articolo trovato</div>
         ) : (
-          rows.map((p) => {
+          paginatedRows.map((p) => {
             const urls = getAllProductPhotoUrls(p)
             return (
               <article key={p.id} className="app-card p-4">
@@ -711,7 +803,7 @@ export default function InventoryPage() {
                 </td>
               </tr>
             ) : (
-              rows.map((p) => (
+              paginatedRows.map((p) => (
                 <tr key={p.id} className="app-table-row">
                   <td className="min-w-0 px-4 py-4 align-top">
                     {(() => {
