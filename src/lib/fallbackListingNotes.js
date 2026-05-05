@@ -32,11 +32,20 @@ export function buildFallbackListingNotes(description) {
   return clampToMaxWords(out, 60).slice(0, 4500)
 }
 
+function stripSkuMentions(notes) {
+  return String(notes || '')
+    .replace(/(?:^|\n)\s*(?:codice\s+)?sku\s*:?\s*\d{1,4}\s*[.!?]?\s*(?=\n|$)/gi, '\n')
+    .replace(/\s*(?:codice\s+)?sku\s*:?\s*\d{1,4}\s*[.!?]?/gi, '')
+    .replace(/[ \t]+([,.!?;:])/g, '$1')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
+}
+
 export function formatListingNotesWithSku(notes, sku) {
   const cleanSku = String(sku || '').replace(/\D/g, '').slice(0, 4)
-  const withoutSku = String(notes || '')
-    .replace(/\n+\s*SKU\s*:\s*\d{1,4}\s*$/i, '')
-    .trim()
-  const body = clampToMaxWords(withoutSku, 60)
-  return cleanSku ? `${body}\n\nSKU: ${cleanSku}` : body
+  const body = clampToMaxWords(stripSkuMentions(notes), 60)
+  if (!cleanSku) return body
+  return body ? `${body}\n\nSKU: ${cleanSku}` : `SKU: ${cleanSku}`
 }
