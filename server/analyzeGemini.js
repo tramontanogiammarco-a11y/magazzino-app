@@ -2,6 +2,7 @@ import {
   buildFallbackListingNotes,
   clampToMaxWords,
   countWords,
+  formatListingNotesWithSku,
 } from '../src/lib/fallbackListingNotes.js'
 import { parseJsonFromModelText } from './modelJsonParse.js'
 
@@ -153,11 +154,11 @@ export async function tryGeminiAnalyze({ images, n, systemText, multiLeadText, f
     .trim()
     .slice(0, 4500)
 
-  notesOut = clampToMaxWords(notesOut, 40)
+  notesOut = clampToMaxWords(notesOut, 60)
   if (countWords(notesOut) < 10) {
     notesOut = buildFallbackListingNotes(description)
   }
-  notesOut = clampToMaxWords(notesOut, 40)
+  notesOut = formatListingNotesWithSku(notesOut, sku)
 
   const data = {
     description,

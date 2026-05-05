@@ -2,6 +2,7 @@ import {
   buildFallbackListingNotes,
   clampToMaxWords,
   countWords,
+  formatListingNotesWithSku,
 } from './fallbackListingNotes.js'
 import { ensureBrowserReadableImage } from './imageProcessing.js'
 
@@ -161,7 +162,7 @@ export async function extractProductDataFromPhotos(files) {
   if (descTrim && (!notesTrim || countWords(notesTrim) < 10)) {
     d.notes = buildFallbackListingNotes(descTrim)
   }
-  d.notes = clampToMaxWords(String(d.notes ?? '').trim(), 40)
+  d.notes = formatListingNotesWithSku(clampToMaxWords(String(d.notes ?? '').trim(), 60), d.sku)
   return d
 }
 

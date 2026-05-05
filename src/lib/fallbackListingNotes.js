@@ -24,9 +24,19 @@ export function buildFallbackListingNotes(description) {
   const titolo = String(description || '').trim() || 'Capo di seconda mano'
   const senzaPuntoFinale = titolo.endsWith('.') ? titolo.slice(0, -1).trim() : titolo
   const parts = [
-    `Capo di seconda mano: ${senzaPuntoFinale}. `,
-    'Vedi le foto per taglia sull’etichetta, colori e condizioni prima dell’acquisto.',
+    `${senzaPuntoFinale}.`,
+    'In buone condizioni generali, come da foto.',
+    'Ideale per outfit casual di tutti i giorni.',
   ]
   const out = parts.join('').replace(/\s+/g, ' ').trim()
-  return clampToMaxWords(out, 40).slice(0, 4500)
+  return clampToMaxWords(out, 60).slice(0, 4500)
+}
+
+export function formatListingNotesWithSku(notes, sku) {
+  const cleanSku = String(sku || '').replace(/\D/g, '').slice(0, 4)
+  const withoutSku = String(notes || '')
+    .replace(/\n+\s*SKU\s*:\s*\d{1,4}\s*$/i, '')
+    .trim()
+  const body = clampToMaxWords(withoutSku, 60)
+  return cleanSku ? `${body}\n\nSKU: ${cleanSku}` : body
 }

@@ -2,6 +2,7 @@ import {
   buildFallbackListingNotes,
   clampToMaxWords,
   countWords,
+  formatListingNotesWithSku,
 } from '../src/lib/fallbackListingNotes.js'
 import { tryGeminiAnalyze, getGeminiApiKeyForServer } from './analyzeGemini.js'
 import { parseJsonFromModelText } from './modelJsonParse.js'
@@ -231,16 +232,16 @@ export async function analyzeAnthropic(body) {
 
   const promptCombinedSingle =
     'Analizza la foto: capo usato con foglio etichetta. Rispondi con UN SOLO JSON con le chiavi description, sku, client_name, slot, notes. ' +
-    'description = titolo breve 6-7 parole per magazzino. sku = esattamente 4 cifre se leggibile altrimenti "". ' +
+    'description = titolo vendibile breve stile Vinted: brand se leggibile + tipo capo + colore/fantasia + taglia se leggibile, massimo 8 parole, senza inventare. sku = esattamente 4 cifre se leggibile altrimenti "". ' +
     'client_name e slot come letti dall’etichetta (stringa vuota se non leggibili). ' +
-    'notes = descrizione annuncio in italiano, **minimo 10 parole e massimo 40 parole**: tipo capo e marca se leggibile, taglia solo se su etichetta, colore sintetico, condizioni se deducibili; una parola su vestibilità solo se evidentissima. ' +
-    'Niente hashtag, prezzo o emoji; niente elenchi lunghi di dettagli costruttivi.'
+    'notes = descrizione annuncio Vinted in italiano, breve e naturale, 25-55 parole: 3-5 frasi corte, tipo capo, marca se leggibile, taglia solo se visibile, colore/fantasia, condizioni generali. ' +
+    'Niente tono da negozio, niente superlativi, niente hashtag, prezzo o emoji; non inventare dettagli. Non scrivere SKU nelle notes: verra aggiunto dopo.'
 
   const promptCombinedMulti =
     'Rispondi con UN SOLO JSON: chiavi description, sku, client_name, slot, notes. ' +
-    'description: 6-7 parole (titolo magazzino) fondendo tutte le foto. sku: 4 cifre se chiaro in almeno una foto altrimenti "". ' +
+    'description: titolo vendibile breve stile Vinted, brand se leggibile + tipo capo + colore/fantasia + taglia se leggibile, massimo 8 parole, fondendo tutte le foto. sku: 4 cifre se chiaro in almeno una foto altrimenti "". ' +
     'client_name e slot: valori più leggibili tra le inquadrature (stringa vuota se non leggibili). ' +
-    'notes: come per annuncio (10-40 parole italiano, essenziale: tipo capo, marca, taglia da etichetta, colore, condizioni). Niente hashtag, prezzo o emoji.'
+    'notes: annuncio Vinted in italiano, breve e naturale, 25-55 parole, 3-5 frasi corte: tipo capo, marca se leggibile, taglia solo se visibile, colore/fantasia, condizioni generali. Niente tono da negozio, hashtag, prezzo o emoji; non inventare. Non scrivere SKU nelle notes.'
 
   const content1 = buildImageBlocks(images, n, {
     multiLeadText: n > 1 ? multiLead : '',
@@ -350,11 +351,11 @@ export async function analyzeAnthropic(body) {
     .trim()
     .slice(0, 4500)
 
-  notesOut = clampToMaxWords(notesOut, 40)
+  notesOut = clampToMaxWords(notesOut, 60)
   if (countWords(notesOut) < 10) {
     notesOut = buildFallbackListingNotes(description)
   }
-  notesOut = clampToMaxWords(notesOut, 40)
+  notesOut = formatListingNotesWithSku(notesOut, sku)
 
   const data = {
     description,
