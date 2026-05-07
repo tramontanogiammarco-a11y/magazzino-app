@@ -84,24 +84,22 @@ button {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 14px;
+  gap: 18px;
 }
 
 .logo-mark {
-  display: grid;
-  width: 62px;
-  height: 62px;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid rgba(39, 159, 154, 0.22);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7), 0 14px 34px rgba(8, 123, 119, 0.12);
+  display: flex;
+  width: 82px;
+  height: 82px;
+  flex: 0 0 82px;
+  align-items: center;
+  justify-content: center;
 }
 
 .logo-mark img {
-  width: 54px;
-  height: 54px;
+  display: block;
+  width: 82px;
+  height: 82px;
   object-fit: contain;
 }
 
@@ -644,14 +642,14 @@ textarea:focus {
   }
 
   .logo-mark {
-    width: 54px;
-    height: 54px;
-    border-radius: 16px;
+    width: 64px;
+    height: 64px;
+    flex-basis: 64px;
   }
 
   .logo-mark img {
-    width: 47px;
-    height: 47px;
+    width: 64px;
+    height: 64px;
   }
 
   .stat-card strong {
