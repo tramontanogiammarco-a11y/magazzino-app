@@ -395,10 +395,15 @@ textarea:focus {
   color: var(--muted);
 }
 
-.row-actions select {
+.row-actions select,
+.row-date-input {
   min-height: 42px;
   max-width: 190px;
   padding-block: 8px;
+}
+
+.row-date-input {
+  width: 156px;
 }
 
 .status-badge {
@@ -489,7 +494,12 @@ textarea:focus {
     font-size: 30px;
   }
 
-  .row-actions select {
+  .row-actions select,
+  .row-date-input {
     max-width: none;
+  }
+
+  .row-date-input {
+    width: 100%;
   }
 }

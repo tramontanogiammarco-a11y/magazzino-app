@@ -124,7 +124,9 @@ function LeadForm({ draft, setDraft, onSubmit, editingId, onCancel }) {
   )
 }
 
-function LeadRow({ lead, onEdit, onDelete, onQuickStatus }) {
+function LeadRow({ lead, onEdit, onDelete, onQuickStatus, onQuickDate }) {
+  const isConfirmed = CONFIRMED_STATUSES.has(lead.status)
+
   return (
     <article className="lead-row">
       <div className="lead-main">
@@ -146,6 +148,15 @@ function LeadRow({ lead, onEdit, onDelete, onQuickStatus }) {
             <option key={status.value} value={status.value}>{status.label}</option>
           ))}
         </select>
+        {isConfirmed ? (
+          <input
+            className="row-date-input"
+            type="date"
+            value={lead.scheduledDate || todayIso()}
+            onChange={(e) => onQuickDate(lead, e.target.value)}
+            title="Data da seguire"
+          />
+        ) : null}
         <button className="secondary-btn" type="button" onClick={() => onEdit(lead)}>Apri</button>
         <button className="danger-btn" type="button" onClick={() => onDelete(lead.id)}>Elimina</button>
       </div>
@@ -225,11 +236,12 @@ export default function App() {
   }
 
   async function quickStatus(lead, status) {
-    if (CONFIRMED_STATUSES.has(status)) {
-      editLead({ ...lead, status })
-      return
-    }
-    await persistLead(normalizeLead({ ...lead, status }, lead))
+    const scheduledDate = CONFIRMED_STATUSES.has(status) ? lead.scheduledDate || todayIso() : ''
+    await persistLead(normalizeLead({ ...lead, status, scheduledDate }, lead))
+  }
+
+  async function quickDate(lead, scheduledDate) {
+    await persistLead(normalizeLead({ ...lead, scheduledDate }, lead))
   }
 
   async function postponeFollowUp(lead) {
@@ -369,6 +381,7 @@ export default function App() {
                   onEdit={editLead}
                   onDelete={deleteLead}
                   onQuickStatus={quickStatus}
+                  onQuickDate={quickDate}
                 />
               ))
             ) : (
