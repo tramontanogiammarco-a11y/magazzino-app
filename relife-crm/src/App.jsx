@@ -290,9 +290,14 @@ export default function App() {
     <div className="app-shell">
       <div className="page-bg" aria-hidden />
       <header className="topbar">
-        <div>
-          <p className="kicker">Relife Battery</p>
-          <h1>CRM</h1>
+        <div className="brand-lockup">
+          <div className="logo-mark">
+            <img src="/relife-logo.png" alt="Relife Battery" />
+          </div>
+          <div>
+            <p className="kicker">Relife Battery</p>
+            <h1>Lead CRM</h1>
+          </div>
         </div>
         <div className="topbar-actions">
           <span className={`sync-pill ${storageMode === 'cloud' ? 'sync-cloud' : ''}`}>
@@ -303,6 +308,16 @@ export default function App() {
       </header>
 
       <main className="content">
+        <section className="hero-strip">
+          <div>
+            <p className="kicker">Pipeline operativo</p>
+            <h2>Clienti, conferme e follow-up in un unico posto.</h2>
+          </div>
+          <div className="hero-meta">
+            <span>{formatDate(today)}</span>
+          </div>
+        </section>
+
         <section className="stats-grid">
           <StatCard label="Lead totali" value={stats.total} />
           <StatCard label="Attivi" value={stats.active} />
