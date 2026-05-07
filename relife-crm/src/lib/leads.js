@@ -11,6 +11,7 @@ export const CONFIRMED_STATUSES = new Set(['confermato_spedisce', 'confermato_po
 export const ACTIVE_STATUSES = new Set(['conversazione', ...CONFIRMED_STATUSES])
 export const STORAGE_KEY = 'relife_crm_leads_v3'
 export const FOLLOW_UP_DAYS = 20
+export const CONFIRMED_LOOKAHEAD_DAYS = 8
 
 export function statusLabel(status) {
   return STATUSES.find((item) => item.value === status)?.label || status
@@ -34,6 +35,13 @@ export function daysBetween(fromIso, toIso = todayIso()) {
   return Math.floor((to - from) / 86400000)
 }
 
+export function addDaysIso(fromIso, days) {
+  const date = new Date(`${fromIso}T12:00:00`)
+  if (Number.isNaN(date.getTime())) return ''
+  date.setDate(date.getDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
 export function followUpDueDate(lead) {
   if (lead.status !== 'conversazione') return ''
   const base = new Date(`${lead.lastMovedAt || lead.updatedAt || lead.createdAt}T12:00:00`)
@@ -49,6 +57,12 @@ export function isFollowUpDue(lead, today = todayIso()) {
 
 export function isBatteryTaskDue(lead, today = todayIso()) {
   return CONFIRMED_STATUSES.has(lead.status) && lead.scheduledDate && lead.scheduledDate <= today
+}
+
+export function isConfirmedInWindow(lead, today = todayIso(), days = CONFIRMED_LOOKAHEAD_DAYS) {
+  if (!CONFIRMED_STATUSES.has(lead.status) || !lead.scheduledDate) return false
+  const end = addDaysIso(today, days)
+  return lead.scheduledDate >= today && lead.scheduledDate <= end
 }
 
 export function newLeadDraft() {

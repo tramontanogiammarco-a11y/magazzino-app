@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ACTIVE_STATUSES,
   CONFIRMED_STATUSES,
+  CONFIRMED_LOOKAHEAD_DAYS,
   STATUSES,
+  addDaysIso,
   exportLeadsCsv,
   followUpDueDate,
   formatDate,
-  isBatteryTaskDue,
+  isConfirmedInWindow,
   isFollowUpDue,
   newLeadDraft,
   normalizeLead,
@@ -170,6 +172,7 @@ export default function App() {
   const [editingId, setEditingId] = useState('')
   const [filters, setFilters] = useState(emptyFilters)
   const [storageMode, setStorageMode] = useState('locale')
+  const [showFollowUps, setShowFollowUps] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -256,7 +259,7 @@ export default function App() {
       active,
       conversation: leads.filter((lead) => lead.status === 'conversazione').length,
       dueFollowups: leads.filter((lead) => isFollowUpDue(lead, today)).length,
-      dueBatteries: leads.filter((lead) => isBatteryTaskDue(lead, today)).length,
+      upcomingBatteries: leads.filter((lead) => isConfirmedInWindow(lead, today)).length,
       paid: leads.filter((lead) => lead.status === 'pagato').length,
     }
   }, [leads, today])
@@ -264,7 +267,7 @@ export default function App() {
   const agenda = useMemo(() => {
     const followups = leads.filter((lead) => isFollowUpDue(lead, today))
     const batteries = leads
-      .filter((lead) => CONFIRMED_STATUSES.has(lead.status))
+      .filter((lead) => isConfirmedInWindow(lead, today))
       .sort((a, b) => String(a.scheduledDate).localeCompare(String(b.scheduledDate)))
     return { followups, batteries }
   }, [leads, today])
@@ -305,7 +308,7 @@ export default function App() {
           <StatCard label="Attivi" value={stats.active} />
           <StatCard label="Conversazione" value={stats.conversation} />
           <StatCard label="Follow-up" value={stats.dueFollowups} accent />
-          <StatCard label="Batterie oggi" value={stats.dueBatteries} accent />
+          <StatCard label="Prossimi giorni" value={stats.upcomingBatteries} accent />
           <StatCard label="Pagati" value={stats.paid} />
         </section>
 
@@ -321,33 +324,39 @@ export default function App() {
           <aside className="app-card agenda-card">
             <div className="section-heading">
               <div>
-                <p className="kicker">Oggi</p>
+                <p className="kicker">Prossimi giorni</p>
                 <h2>Da seguire</h2>
               </div>
-              <span className="date-pill">{formatDate(today)}</span>
+              <span className="date-pill">{formatDate(today)} - {formatDate(addDaysIso(today, CONFIRMED_LOOKAHEAD_DAYS))}</span>
             </div>
 
             <div className="agenda-block">
-              <h3>Follow-up conversazione</h3>
-              {agenda.followups.length ? (
-                agenda.followups.map((lead) => (
-                  <AgendaItem key={lead.id} lead={lead} kind="followup" onEdit={editLead} onDone={postponeFollowUp} />
-                ))
-              ) : (
-                <p className="empty">Nessun follow-up scaduto.</p>
-              )}
-            </div>
-
-            <div className="agenda-block">
-              <h3>Batterie confermate</h3>
+              <h3>Confermate da preparare</h3>
               {agenda.batteries.length ? (
-                agenda.batteries.slice(0, 8).map((lead) => (
+                agenda.batteries.map((lead) => (
                   <AgendaItem key={lead.id} lead={lead} kind="battery" onEdit={editLead} onDone={postponeFollowUp} />
                 ))
               ) : (
-                <p className="empty">Nessuna batteria pianificata.</p>
+                <p className="empty">Nessuna conferma nei prossimi giorni.</p>
               )}
             </div>
+
+            <button className="followup-toggle" type="button" onClick={() => setShowFollowUps((value) => !value)}>
+              <span>Follow-up conversazioni ferme</span>
+              <strong>{agenda.followups.length}</strong>
+            </button>
+
+            {showFollowUps ? (
+              <div className="agenda-block followup-panel">
+                {agenda.followups.length ? (
+                  agenda.followups.map((lead) => (
+                    <AgendaItem key={lead.id} lead={lead} kind="followup" onEdit={editLead} onDone={postponeFollowUp} />
+                  ))
+                ) : (
+                  <p className="empty">Nessun lead in conversazione fermo da 20 giorni.</p>
+                )}
+              </div>
+            ) : null}
           </aside>
         </section>
 
