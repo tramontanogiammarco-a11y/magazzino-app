@@ -44,19 +44,6 @@ function sortLeads(leads) {
   return [...leads].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
 }
 
-function newerLead(a, b) {
-  if (!a) return b
-  if (!b) return a
-  return String(a.updatedAt || '').localeCompare(String(b.updatedAt || '')) >= 0 ? a : b
-}
-
-function mergeLeads(localLeads, remoteLeads) {
-  const byId = new Map()
-  for (const lead of remoteLeads) byId.set(lead.id, lead)
-  for (const lead of localLeads) byId.set(lead.id, newerLead(lead, byId.get(lead.id)))
-  return sortLeads([...byId.values()])
-}
-
 function upsertLocal(lead) {
   const current = readLeads()
   const next = current.some((item) => item.id === lead.id)
@@ -82,16 +69,7 @@ export async function loadLeads() {
     return { leads: localLeads, mode: 'locale' }
   }
 
-  const remoteLeads = (data || []).map(fromDbLead)
-  const leads = mergeLeads(localLeads, remoteLeads)
-
-  if (leads.length && localLeads.length) {
-    const { error: syncError } = await supabase.from('relife_leads').upsert(leads.map(toDbLead), { onConflict: 'id' })
-    if (syncError) {
-      console.warn('[relife-crm] Merge locale/cloud non completato.', syncError.message)
-    }
-  }
-
+  const leads = sortLeads((data || []).map(fromDbLead))
   writeLeads(leads)
   return { leads, mode: 'cloud' }
 }
